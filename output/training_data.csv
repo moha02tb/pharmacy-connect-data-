@@ -1,0 +1,51 @@
+text,intent,source,category
+What medications interact with ibuprofen?,drug_interaction_check,Seed Data,drug_interaction
+What are the side effects of ibuprofen?,side_effects_inquiry,Seed Data,side_effects
+How much ibuprofen can I take?,dosage_inquiry,Seed Data,dosage
+What is ibuprofen used for?,medication_inquiry,Seed Data,medication
+Can I take ibuprofen with alcohol?,drug_interaction_check,Seed Data,drug_interaction
+What is acetaminophen?,medication_inquiry,Seed Data,medication
+What are the side effects of Tylenol?,side_effects_inquiry,Seed Data,side_effects
+How often can I take acetaminophen?,dosage_inquiry,Seed Data,dosage
+Is it safe to take Tylenol and alcohol?,drug_interaction_check,Seed Data,drug_interaction
+What is the maximum dose of acetaminophen per day?,dosage_inquiry,Seed Data,dosage
+When should I get a flu shot?,vaccination_info,Seed Data,vaccination
+Is the flu vaccine safe?,vaccination_info,Seed Data,vaccination
+Where can I get vaccinated?,vaccination_info,Seed Data,vaccination
+How effective is the flu vaccine?,vaccination_info,Seed Data,vaccination
+Do I need a flu vaccine every year?,vaccination_info,Seed Data,vaccination
+How do I treat a minor burn?,first_aid_guidance,Seed Data,first_aid
+What should I do if someone is having a seizure?,first_aid_guidance,Seed Data,first_aid
+How do I perform CPR?,first_aid_guidance,Seed Data,first_aid
+What do I do for a bee sting?,first_aid_guidance,Seed Data,first_aid
+How do I stop bleeding?,first_aid_guidance,Seed Data,first_aid
+Someone overdosed on opioids what do I do?,emergency_assistance,Seed Data,emergency
+Call 911 if someone is unconscious,emergency_assistance,Seed Data,emergency
+Signs of a drug overdose,emergency_assistance,Seed Data,emergency
+Poison control number,emergency_assistance,Seed Data,emergency
+What to do if someone stops breathing,emergency_assistance,Seed Data,emergency
+Where is the nearest pharmacy?,pharmacy_location,Seed Data,pharmacy
+Find a pharmacy near me,pharmacy_location,Seed Data,pharmacy
+Is there a 24-hour pharmacy nearby?,pharmacy_location,Seed Data,pharmacy
+How do I refill my prescription?,prescription_refill,Seed Data,pharmacy
+Can I refill my prescription online?,prescription_refill,Seed Data,pharmacy
+How long does it take to refill a prescription?,prescription_refill,Seed Data,pharmacy
+What antibiotics treat strep throat?,medication_inquiry,Seed Data,medication
+What is amoxicillin used for?,medication_inquiry,Seed Data,medication
+Can I take ibuprofen and acetaminophen together?,drug_interaction_check,Seed Data,drug_interaction
+What are common blood pressure medications?,medication_inquiry,Seed Data,medication
+What are the side effects of lisinopril?,side_effects_inquiry,Seed Data,side_effects
+How should I store my medications?,general_health_question,Seed Data,general_health
+What happens if I miss a dose?,general_health_question,Seed Data,general_health
+Can I crush my pills?,general_health_question,Seed Data,general_health
+What is a generic drug?,general_health_question,Seed Data,general_health
+Hello,greeting,Seed Data,general_health
+Hi there,greeting,Seed Data,general_health
+Good morning,greeting,Seed Data,general_health
+Hey,greeting,Seed Data,general_health
+Goodbye,farewell,Seed Data,general_health
+Thanks bye,farewell,Seed Data,general_health
+See you later,farewell,Seed Data,general_health
+What is the weather today?,out_of_scope,Seed Data,general_health
+Tell me a joke,out_of_scope,Seed Data,general_health
+What is the stock market doing?,out_of_scope,Seed Data,general_health
