@@ -1,11 +1,15 @@
 """
-Data collection scrapers package.
+Data collection scrapers / loaders package.
 
-Provides scrapers for Red Cross, CDC, and Mayo Clinic health data sources.
+Provides loaders for the MedDialog and DrugBank data sources.
+The legacy web scrapers (Red Cross, CDC, Mayo Clinic) have been removed
+because their endpoints were unreliable (403 / 404 / rate-limiting).
+``base_scraper.py`` is kept as a template for adding new scraping-based
+sources in the future.
 """
 
-from .red_cross_scraper import RedCrossScraper
-from .cdc_scraper import CDCScraper
-from .mayo_clinic_scraper import MayoClinicScraper
+from .meddialog_loader import MedDialogLoader
+from .meddialog_kb_builder import MedDialogKBBuilder
+from .drugbank_loader import DrugBankLoader
 
-__all__ = ["RedCrossScraper", "CDCScraper", "MayoClinicScraper"]
+__all__ = ["MedDialogLoader", "MedDialogKBBuilder", "DrugBankLoader"]

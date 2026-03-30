@@ -1,18 +1,25 @@
 """
-run_collection.py – Execute the full data-collection pipeline.
+run_collection.py – Execute the simplified MedDialog data-collection pipeline.
 
 Usage
 -----
 ::
 
-    python scripts/run_collection.py [--sources red_cross cdc mayo_clinic]
+    python scripts/run_collection.py [--max-records 65000]
                                      [--output-dir output/]
+                                     [--drugbank-file path/to/drugbank.json]
 
-This script:
-  1. Instantiates each enabled scraper.
-  2. Runs them in sequence (respecting per-source rate limits).
-  3. Cleans, validates, and structures the scraped records.
-  4. Writes ``knowledge_base.json`` and ``training_data.csv`` to the output dir.
+Pipeline steps
+--------------
+1. **Load** – Download the OpenMed/MedDialog dataset from Hugging Face and
+   filter for pharmacy-relevant conversations.
+2. **Process** – Map Q&A pairs to 13 pharmacy intent labels and build
+   structured training rows + knowledge-base entries.
+3. **Export** – Write ``knowledge_base.json`` and ``training_data.csv``.
+
+Optional: if ``--drugbank-file`` is provided (or the ``DRUGBANK_FILE``
+environment variable is set), DrugBank drug metadata is merged into the
+knowledge base.
 """
 
 import argparse
@@ -30,13 +37,12 @@ if _PROJECT_ROOT not in sys.path:
 from data_collection.config import (
     DATA_SOURCES,
     KNOWLEDGE_BASE_PATH,
+    MEDDIALOG_SETTINGS,
     OUTPUT_DIR,
-    PROCESSOR_SETTINGS,
-    SCRAPER_SETTINGS,
     TRAINING_DATA_PATH,
 )
-from data_collection.processors import DataCleaner, DataStructurer, DataValidator
-from data_collection.scrapers import CDCScraper, MayoClinicScraper, RedCrossScraper
+from data_collection.scrapers import DrugBankLoader, MedDialogKBBuilder, MedDialogLoader
+from data_collection.processors import IntentMapper, MedDialogProcessor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,21 +50,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_SCRAPER_MAP = {
-    "red_cross": RedCrossScraper,
-    "cdc": CDCScraper,
-    "mayo_clinic": MayoClinicScraper,
-}
-
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Pharmacy Connect – data collection")
+    parser = argparse.ArgumentParser(description="Pharmacy Connect – MedDialog data collection")
     parser.add_argument(
-        "--sources",
-        nargs="+",
-        choices=list(_SCRAPER_MAP.keys()),
-        default=list(_SCRAPER_MAP.keys()),
-        help="Data sources to scrape (default: all)",
+        "--max-records",
+        type=int,
+        default=DATA_SOURCES["meddialog"].get("max_records", 65_000),
+        help="Maximum Q&A pairs to extract from MedDialog (default: 65 000)",
     )
     parser.add_argument(
         "--output-dir",
@@ -66,72 +65,98 @@ def parse_args() -> argparse.Namespace:
         help="Directory for output files (default: output/)",
     )
     parser.add_argument(
+        "--drugbank-file",
+        default=DATA_SOURCES["drugbank"].get("file_path", ""),
+        help="Path to a local DrugBank JSON/CSV file (optional)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run scrapers but do not write output files",
+        help="Run the pipeline but do not write output files",
+    )
+    parser.add_argument(
+        "--no-filter",
+        action="store_true",
+        help="Disable pharmacy-keyword filtering (load all conversations)",
     )
     return parser.parse_args()
 
 
-def run_collection(sources: list, output_dir: str, dry_run: bool = False) -> dict:
+def run_collection(
+    max_records: int,
+    output_dir: str,
+    drugbank_file: str = "",
+    dry_run: bool = False,
+    filter_pharmacy: bool = True,
+) -> dict:
     """
-    Execute the data-collection pipeline.
+    Execute the 3-step MedDialog data-collection pipeline.
 
     Returns a summary dict with record counts.
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # ── Scraping ──────────────────────────────────────────────────────────────
-    all_raw_records = []
-    for source_key in sources:
-        source_config = DATA_SOURCES.get(source_key)
-        if not source_config:
-            logger.warning("Unknown source '%s' – skipping.", source_key)
-            continue
+    meddialog_cfg = DATA_SOURCES["meddialog"]
 
-        scraper_cls = _SCRAPER_MAP[source_key]
-        scraper = scraper_cls(config=source_config)
-        records = scraper.scrape()
-        all_raw_records.extend(records)
-        logger.info("Source '%s': %d raw records", source_key, len(records))
+    # ── Step 1: Load MedDialog ────────────────────────────────────────────────
+    logger.info("Step 1/3 – Loading OpenMed/MedDialog dataset …")
+    loader = MedDialogLoader(
+        dataset_name=meddialog_cfg["dataset_id"],
+        split=meddialog_cfg.get("split", "train"),
+        filter_pharmacy=filter_pharmacy and meddialog_cfg.get("filter_pharmacy", True),
+        cache_dir=MEDDIALOG_SETTINGS.get("cache_dir"),
+    )
+    qa_pairs = loader.load(max_records=max_records)
+    logger.info("Loaded %d Q&A pairs from MedDialog.", len(qa_pairs))
 
-    logger.info("Total raw records: %d", len(all_raw_records))
+    # ── Step 2: Process – intent mapping + training rows + KB ─────────────────
+    logger.info("Step 2/3 – Mapping intents and building training data …")
+    mapper = IntentMapper(
+        confidence_threshold=MEDDIALOG_SETTINGS.get("confidence_threshold", 0.3)
+    )
+    qa_pairs = mapper.map(qa_pairs)
 
-    # ── Processing ────────────────────────────────────────────────────────────
-    cleaner = DataCleaner(settings=PROCESSOR_SETTINGS)
-    cleaned = cleaner.clean(all_raw_records)
+    processor = MedDialogProcessor(
+        max_text_length=MEDDIALOG_SETTINGS.get("max_text_length", 500),
+        min_text_length=MEDDIALOG_SETTINGS.get("min_text_length", 10),
+        include_answer=MEDDIALOG_SETTINGS.get("include_answer_in_text", False),
+    )
+    training_rows = processor.process(qa_pairs)
 
-    validator = DataValidator(settings=PROCESSOR_SETTINGS)
-    validated = validator.validate(cleaned)
+    kb_builder = MedDialogKBBuilder()
+    knowledge_base = kb_builder.build(qa_pairs)
 
-    structurer = DataStructurer(settings=PROCESSOR_SETTINGS)
-    structured = structurer.structure(validated)
-
-    knowledge_base = structured["knowledge_base"]
-    training_data = structured["training_data"]
+    # ── Optional: DrugBank enrichment ─────────────────────────────────────────
+    drugbank_entries: list = []
+    if drugbank_file:
+        logger.info("Loading DrugBank data from '%s' …", drugbank_file)
+        db_loader = DrugBankLoader(file_path=drugbank_file)
+        drugbank_entries = db_loader.load()
+        knowledge_base.extend(drugbank_entries)
+        logger.info("Added %d DrugBank entries to knowledge base.", len(drugbank_entries))
 
     logger.info(
-        "Pipeline complete: %d KB entries, %d training rows",
+        "Step 2/3 complete: %d training rows, %d KB entries",
+        len(training_rows),
         len(knowledge_base),
-        len(training_data),
     )
 
-    # ── Output ────────────────────────────────────────────────────────────────
+    # ── Step 3: Export ────────────────────────────────────────────────────────
+    logger.info("Step 3/3 – Writing output files …")
     if not dry_run:
         kb_path = os.path.join(output_dir, os.path.basename(KNOWLEDGE_BASE_PATH))
         _write_knowledge_base(knowledge_base, kb_path)
 
         td_path = os.path.join(output_dir, os.path.basename(TRAINING_DATA_PATH))
-        _write_training_data(training_data, td_path)
+        _write_training_data(training_rows, td_path)
     else:
         logger.info("Dry run – output files not written.")
 
     return {
-        "raw_records": len(all_raw_records),
-        "cleaned_records": len(cleaned),
-        "validated_records": len(validated),
+        "qa_pairs_loaded": len(qa_pairs),
+        "training_rows": len(training_rows),
         "knowledge_base_entries": len(knowledge_base),
-        "training_rows": len(training_data),
+        "drugbank_entries": len(drugbank_entries),
     }
 
 
@@ -145,7 +170,6 @@ def _write_knowledge_base(entries: list, path: str) -> None:
             except json.JSONDecodeError:
                 logger.warning("Existing KB at %s is malformed – overwriting.", path)
 
-    # Merge: preserve existing seed entries, append new ones
     existing_ids = {e["id"] for e in existing}
     new_entries = [e for e in entries if e["id"] not in existing_ids]
     merged = existing + new_entries
@@ -173,9 +197,11 @@ def _write_training_data(rows: list, path: str) -> None:
 if __name__ == "__main__":
     args = parse_args()
     summary = run_collection(
-        sources=args.sources,
+        max_records=args.max_records,
         output_dir=args.output_dir,
+        drugbank_file=args.drugbank_file,
         dry_run=args.dry_run,
+        filter_pharmacy=not args.no_filter,
     )
     print("\nCollection summary:")
     for key, value in summary.items():

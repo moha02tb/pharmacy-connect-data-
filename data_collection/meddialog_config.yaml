@@ -1,0 +1,33 @@
+# meddialog_config.yaml – Dataset-specific configuration for MedDialog loading.
+#
+# This file supplements data_collection/config.py and is consumed by
+# scripts/run_collection.py when the MedDialog data source is active.
+
+dataset:
+  name: "OpenMed/MedDialog"
+  split: "train"
+  # Set to a local directory to cache the downloaded dataset
+  cache_dir: null
+
+filtering:
+  # Only keep conversations that contain at least one pharmacy keyword
+  filter_pharmacy: true
+  # Maximum Q&A pairs to extract per run (null = no limit)
+  max_records: 65000
+  # Minimum question length in characters
+  min_text_length: 10
+  # Maximum text length in characters for training rows
+  max_text_length: 500
+
+intent_mapping:
+  # Minimum keyword-match confidence to assign a specific intent.
+  # Records below this threshold receive "general_health_question".
+  confidence_threshold: 0.3
+
+knowledge_base:
+  # Maximum character length for answer content in KB entries
+  max_answer_length: 1000
+
+output:
+  knowledge_base: "output/knowledge_base.json"
+  training_data: "output/training_data.csv"
