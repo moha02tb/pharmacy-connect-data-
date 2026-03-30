@@ -1,5 +1,9 @@
 """
-Configuration for data collection sources, scraping settings, and output paths.
+Configuration for data collection sources and output paths.
+
+Legacy web scrapers (Red Cross, CDC, Mayo Clinic) have been replaced by the
+OpenMed/MedDialog Hugging Face dataset and the optional DrugBank Open Data
+file loader.
 """
 
 import os
@@ -16,76 +20,39 @@ TRAINING_DATA_PATH = os.path.join(OUTPUT_DIR, "training_data.csv")
 
 # ── Data source configurations ────────────────────────────────────────────────
 DATA_SOURCES = {
-    "red_cross": {
-        "name": "American Red Cross",
-        "base_url": "https://www.redcross.org",
-        "endpoints": [
-            "/take-a-class/first-aid",
-            "/get-help/how-to-prepare-for-emergencies/types-of-emergencies/medical",
-        ],
-        "topics": [
-            "first aid",
-            "emergency preparedness",
-            "medication safety",
-            "bleeding control",
-            "CPR",
-        ],
-        "rate_limit_seconds": 2.0,
-        "timeout_seconds": 30,
+    "meddialog": {
+        "name": "OpenMed/MedDialog",
+        "type": "huggingface_dataset",
+        "dataset_id": "OpenMed/MedDialog",
+        "split": "train",
+        "filter_pharmacy": True,
+        "max_records": 65_000,
         "enabled": True,
     },
-    "cdc": {
-        "name": "Centers for Disease Control and Prevention",
-        "base_url": "https://www.cdc.gov",
-        "endpoints": [
-            "/medication/index.html",
-            "/niosh/topics/medication/default.html",
-            "/drugoverdose/index.html",
-            "/coronavirus/2019-ncov/vaccines/index.html",
-        ],
-        "topics": [
-            "medication safety",
-            "drug interactions",
-            "vaccination",
-            "prescription guidelines",
-            "overdose prevention",
-        ],
-        "rate_limit_seconds": 2.0,
-        "timeout_seconds": 30,
-        "enabled": True,
+    "drugbank": {
+        "name": "DrugBank Open Data",
+        "type": "json_api",
+        # Set this to a local file path after downloading from
+        # https://go.drugbank.com/releases/latest
+        "file_path": os.environ.get("DRUGBANK_FILE", ""),
+        "max_records": 13_000,
+        "enabled": bool(os.environ.get("DRUGBANK_FILE", "")),
     },
-    "mayo_clinic": {
-        "name": "Mayo Clinic",
-        "base_url": "https://www.mayoclinic.org",
-        "endpoints": [
-            "/patient-care-and-health-information/consumer-health",
-            "/diseases-conditions",
-            "/drugs-supplements",
-        ],
-        "topics": [
-            "drug information",
-            "side effects",
-            "dosage",
-            "drug interactions",
-            "health conditions",
-            "supplements",
-        ],
-        "rate_limit_seconds": 3.0,
-        "timeout_seconds": 30,
-        "enabled": True,
-    },
+    # Legacy scrapers – disabled; endpoints were unreliable
+    "red_cross": {"enabled": False},
+    "cdc": {"enabled": False},
+    "mayo_clinic": {"enabled": False},
 }
 
-# ── Scraper settings ──────────────────────────────────────────────────────────
-SCRAPER_SETTINGS = {
-    "user_agent": (
-        "Mozilla/5.0 (compatible; PharmacyConnectBot/1.0; "
-        "+https://github.com/moha02tb/pharmacy-connect-data-)"
-    ),
-    "max_retries": 3,
-    "backoff_factor": 2.0,
-    "max_pages_per_source": 50,
-    "min_content_length": 100,
+# ── MedDialog loader settings ─────────────────────────────────────────────────
+MEDDIALOG_SETTINGS = {
+    # HF_DATASETS_CACHE: custom override for the Hugging Face datasets cache
+    # directory. When unset, the default (~/.cache/huggingface/datasets) is used.
+    "cache_dir": os.environ.get("HF_DATASETS_CACHE", None),
+    "confidence_threshold": 0.3,
+    "max_text_length": 500,
+    "min_text_length": 10,
+    "include_answer_in_text": False,
 }
 
 # ── Processor settings ────────────────────────────────────────────────────────
@@ -102,6 +69,7 @@ PROCESSOR_SETTINGS = {
         "side_effects",
         "emergency",
         "general_health",
+        "pharmacy_qa",
     ],
     "language": "en",
 }
