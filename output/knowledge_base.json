@@ -1,0 +1,92 @@
+[
+  {
+    "id": "seed_001",
+    "title": "Ibuprofen – Overview",
+    "content": "Ibuprofen is a nonsteroidal anti-inflammatory drug (NSAID) used to relieve pain, reduce fever, and reduce inflammation. Common brand names include Advil and Motrin. It is available over the counter in 200 mg tablets.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "medication",
+    "topics": ["medication", "pain relief", "NSAID", "OTC"]
+  },
+  {
+    "id": "seed_002",
+    "title": "Ibuprofen – Side Effects",
+    "content": "Common side effects of ibuprofen include stomach upset, nausea, vomiting, and heartburn. Serious side effects may include gastrointestinal bleeding, kidney problems, and increased risk of heart attack or stroke with long-term use.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "side_effects",
+    "topics": ["ibuprofen", "side effects", "NSAID"]
+  },
+  {
+    "id": "seed_003",
+    "title": "Ibuprofen – Dosage",
+    "content": "For adults and children 12 years and older: take 200–400 mg every 4 to 6 hours while symptoms persist. Do not exceed 1200 mg in 24 hours unless directed by a doctor. Take with food or milk to reduce stomach upset.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "dosage",
+    "topics": ["ibuprofen", "dosage", "OTC"]
+  },
+  {
+    "id": "seed_004",
+    "title": "Acetaminophen – Overview",
+    "content": "Acetaminophen (paracetamol) is an analgesic and antipyretic medication used to treat mild to moderate pain and fever. Common brand names include Tylenol. It is available over the counter and is considered safe at recommended doses.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "medication",
+    "topics": ["acetaminophen", "paracetamol", "pain relief", "fever", "OTC"]
+  },
+  {
+    "id": "seed_005",
+    "title": "Acetaminophen – Drug Interaction with Alcohol",
+    "content": "Drinking alcohol while taking acetaminophen can increase the risk of liver damage. Patients who drink three or more alcoholic beverages per day should ask their doctor before using acetaminophen-containing medicines.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "drug_interaction",
+    "topics": ["acetaminophen", "alcohol", "drug interaction", "liver"]
+  },
+  {
+    "id": "seed_006",
+    "title": "Flu Vaccine – Information",
+    "content": "The annual influenza (flu) vaccine is recommended for everyone 6 months and older. It is the best way to protect against flu and its potentially serious complications. The vaccine is updated each year to match circulating strains.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "vaccination",
+    "topics": ["flu vaccine", "influenza", "vaccination", "immunization"]
+  },
+  {
+    "id": "seed_007",
+    "title": "First Aid – Treating Minor Burns",
+    "content": "For minor burns: cool the burn under cool (not cold) running water for 10–20 minutes. Do not use ice, butter, or toothpaste. Cover loosely with a sterile dressing. Over-the-counter pain relievers may help with pain. Seek medical attention for large, deep, or infected burns.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "first_aid",
+    "topics": ["first aid", "burns", "emergency care"]
+  },
+  {
+    "id": "seed_008",
+    "title": "Opioid Overdose – Emergency Response",
+    "content": "Signs of opioid overdose include slow or stopped breathing, unresponsiveness, and blue lips. Call 911 immediately. Administer naloxone (Narcan) if available. Lay the person on their side (recovery position) to prevent choking. Stay until help arrives.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "emergency",
+    "topics": ["opioid", "overdose", "emergency", "naloxone", "911"]
+  },
+  {
+    "id": "seed_009",
+    "title": "Antibiotic Use – General Guidance",
+    "content": "Antibiotics should only be used when prescribed by a healthcare professional. Always complete the full course even if you feel better. Never share antibiotics with others. Misuse contributes to antibiotic resistance.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "medication",
+    "topics": ["antibiotics", "prescription", "antibiotic resistance"]
+  },
+  {
+    "id": "seed_010",
+    "title": "Blood Pressure Medications – Overview",
+    "content": "Common classes of blood-pressure medications include ACE inhibitors (e.g. lisinopril), ARBs (e.g. losartan), beta-blockers (e.g. metoprolol), and calcium channel blockers (e.g. amlodipine). These medications help lower blood pressure and reduce cardiovascular risk.",
+    "source": "PharmacyConnect Seed Data",
+    "url": "",
+    "category": "medication",
+    "topics": ["blood pressure", "hypertension", "ACE inhibitor", "beta-blocker"]
+  }
+]

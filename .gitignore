@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Trained model binaries (tracked via README only)
+output/trained_models/**/*.pkl
+output/trained_models/**/*.bin
+output/trained_models/**/pytorch_model.bin
+output/trained_models/**/tf_model.h5
+output/trained_models/**/model.safetensors
+
+# Embedding binaries
+output/embeddings/*.npy
+
+# Export directory (generated artefacts)
+export/
+
+# Temporary BERT training output
+tmp_bert_training/
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/

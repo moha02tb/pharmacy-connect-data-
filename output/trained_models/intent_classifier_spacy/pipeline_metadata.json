@@ -1,0 +1,8 @@
+{
+  "training_samples": 50,
+  "augmented_samples": 67,
+  "metrics": {
+    "accuracy": 0.6428571428571429,
+    "f1": 0.5714285714285714
+  }
+}
