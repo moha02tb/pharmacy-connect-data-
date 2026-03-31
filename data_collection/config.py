@@ -49,6 +49,11 @@ MEDDIALOG_SETTINGS = {
     # HF_DATASETS_CACHE: custom override for the Hugging Face datasets cache
     # directory. When unset, the default (~/.cache/huggingface/datasets) is used.
     "cache_dir": os.environ.get("HF_DATASETS_CACHE", None),
+    # Enable streaming mode so only the rows needed are fetched from Hugging
+    # Face instead of downloading the full 1.47 M-row dataset upfront.
+    "use_streaming": True,
+    # Number of download attempts before giving up (exponential back-off).
+    "max_retries": 3,
     "confidence_threshold": 0.3,
     "max_text_length": 500,
     "min_text_length": 10,

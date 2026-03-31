@@ -16,6 +16,7 @@ Usage
 """
 
 import logging
+import time
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,17 @@ class MedDialogLoader:
         one pharmacy-relevant keyword in the patient utterance.
     cache_dir:
         Optional path to a local directory for caching the downloaded dataset.
+    use_streaming:
+        When ``True`` (default), use Hugging Face *streaming* mode so rows are
+        fetched lazily from the hub.  The download stops as soon as
+        ``max_records`` pharmacy-relevant pairs have been collected, meaning
+        the full 1.47 M-row dataset is **never** downloaded in its entirety.
+        Set to ``False`` only when you need random access or ``len()`` on the
+        dataset object.
+    max_retries:
+        Number of download attempts before raising an error.  Transient
+        network errors (e.g. connection timeouts) trigger an automatic retry
+        with an exponential back-off.  Defaults to ``3``.
     """
 
     def __init__(
@@ -85,11 +97,15 @@ class MedDialogLoader:
         split: str = "train",
         filter_pharmacy: bool = True,
         cache_dir: Optional[str] = None,
+        use_streaming: bool = True,
+        max_retries: int = 3,
     ) -> None:
         self.dataset_name = dataset_name
         self.split = split
         self.filter_pharmacy = filter_pharmacy
         self.cache_dir = cache_dir
+        self.use_streaming = use_streaming
+        self.max_retries = max(1, max_retries)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -112,6 +128,10 @@ class MedDialogLoader:
         max_records:
             Maximum number of Q&A pairs to return.  When ``None`` all matching
             pairs are returned.
+
+            In streaming mode (``use_streaming=True``, the default) the
+            download stops as soon as this limit is reached, so only the rows
+            actually needed are fetched from Hugging Face.
         """
         try:
             from datasets import load_dataset  # type: ignore[import]
@@ -121,13 +141,17 @@ class MedDialogLoader:
                 "Install it with: pip install datasets>=4.0.0"
             ) from exc
 
-        logger.info("Loading dataset '%s' (split='%s') …", self.dataset_name, self.split)
-        dataset = load_dataset(
-            self.dataset_name,
-            split=self.split,
-            cache_dir=self.cache_dir,
-        )
-        logger.info("Dataset loaded: %d conversations", len(dataset))
+        dataset = self._load_with_retry(load_dataset)
+
+        if not self.use_streaming:
+            logger.info("Dataset loaded: %d conversations", len(dataset))
+        else:
+            logger.info(
+                "Streaming dataset '%s' (split='%s') ready – rows will be "
+                "fetched lazily until the max_records limit is reached.",
+                self.dataset_name,
+                self.split,
+            )
 
         records: List[Dict] = []
         for row in dataset:
@@ -150,6 +174,56 @@ class MedDialogLoader:
 
         logger.info("Loaded %d pharmacy-relevant Q&A pairs.", len(records))
         return records
+
+    # ── Internal download helper ──────────────────────────────────────────────
+
+    def _load_with_retry(self, load_dataset_fn):
+        """
+        Call *load_dataset_fn* with retry / back-off logic.
+
+        Attempts up to ``self.max_retries`` times.  Each failure waits
+        ``2 ** attempt`` seconds before the next try (1 s, 2 s, 4 s, …).
+        Raises :class:`RuntimeError` when all attempts are exhausted.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                logger.info(
+                    "Downloading '%s' split='%s' streaming=%s … (attempt %d/%d)",
+                    self.dataset_name,
+                    self.split,
+                    self.use_streaming,
+                    attempt,
+                    self.max_retries,
+                )
+                return load_dataset_fn(
+                    self.dataset_name,
+                    split=self.split,
+                    cache_dir=self.cache_dir,
+                    streaming=self.use_streaming,
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < self.max_retries:
+                    wait = min(2 ** (attempt - 1), 60)
+                    logger.warning(
+                        "Attempt %d/%d failed (%s). Retrying in %d s …",
+                        attempt,
+                        self.max_retries,
+                        exc,
+                        wait,
+                    )
+                    time.sleep(wait)
+                else:
+                    logger.error(
+                        "All %d download attempts failed for '%s'.",
+                        self.max_retries,
+                        self.dataset_name,
+                    )
+        raise RuntimeError(
+            f"Failed to load dataset '{self.dataset_name}' after "
+            f"{self.max_retries} attempt(s)."
+        ) from last_exc
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
