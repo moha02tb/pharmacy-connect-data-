@@ -34,6 +34,14 @@ _FIRST_AID_OVERRIDE_KEYWORDS = frozenset(
         "burn",
         "burned",
         "burning",
+        "chemical burn",
+        "electrical burn",
+        "heat burn",
+        "sunburn",
+        "sun burn",
+        "acid burn",
+        "second degree burn",
+        "third degree burn",
         "scald",
         "scalded",
         "bleed",
@@ -67,6 +75,14 @@ _EMERGENCY_OVERRIDE_KEYWORDS = frozenset(
     ]
 )
 
+# Pre-compiled regex patterns (module load time) for O(1) per-query matching.
+_FIRST_AID_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _FIRST_AID_OVERRIDE_KEYWORDS
+]
+_EMERGENCY_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _EMERGENCY_OVERRIDE_KEYWORDS
+]
+
 
 def _apply_safety_override(text: str, predicted: str) -> str:
     """
@@ -80,19 +96,14 @@ def _apply_safety_override(text: str, predicted: str) -> str:
 
     Word-boundary matching (``\\b``) is used to avoid false positives from
     words that merely *contain* a keyword (e.g. "burnout" ≠ "burn").
+    Patterns are pre-compiled once at module load time for performance.
     """
     if predicted != "general_health_question":
         return predicted
     lower = text.lower()
-    if any(
-        re.search(r"\b" + re.escape(kw) + r"\b", lower)
-        for kw in _FIRST_AID_OVERRIDE_KEYWORDS
-    ):
+    if any(pattern.search(lower) for pattern in _FIRST_AID_PATTERNS):
         return "first_aid_guidance"
-    if any(
-        re.search(r"\b" + re.escape(kw) + r"\b", lower)
-        for kw in _EMERGENCY_OVERRIDE_KEYWORDS
-    ):
+    if any(pattern.search(lower) for pattern in _EMERGENCY_PATTERNS):
         return "emergency_assistance"
     return predicted
 

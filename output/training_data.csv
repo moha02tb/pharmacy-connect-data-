@@ -64,11 +64,23 @@ Minor burn treatment,first_aid_guidance,Seed Data,first_aid
 Severe burn first aid,first_aid_guidance,Seed Data,first_aid
 Burn blister what to do,first_aid_guidance,Seed Data,first_aid
 Got a burn from cooking,first_aid_guidance,Seed Data,first_aid
-Was it a chemical electrical or heat burn,first_aid_guidance,Seed Data,first_aid
+"Was it a chemical, electrical, or heat burn",first_aid_guidance,Seed Data,first_aid
 I am bleeding,first_aid_guidance,Seed Data,first_aid
 Someone is choking what do I do,first_aid_guidance,Seed Data,first_aid
 I sprained my ankle,first_aid_guidance,Seed Data,first_aid
 My wound won't stop bleeding,first_aid_guidance,Seed Data,first_aid
+What type of burn is it,first_aid_guidance,Seed Data,first_aid
+Was it a chemical burn,first_aid_guidance,Seed Data,first_aid
+Is it an electrical burn,first_aid_guidance,Seed Data,first_aid
+Chemical burn treatment,first_aid_guidance,Seed Data,first_aid
+Electrical burn first aid,first_aid_guidance,Seed Data,first_aid
+Heat burn on skin,first_aid_guidance,Seed Data,first_aid
+How serious is this burn,first_aid_guidance,Seed Data,first_aid
+Second degree burn care,first_aid_guidance,Seed Data,first_aid
+Third degree burn what to do,first_aid_guidance,Seed Data,first_aid
+Sunburn relief,first_aid_guidance,Seed Data,first_aid
+Acid burn on skin,first_aid_guidance,Seed Data,first_aid
+What kind of burn do I have,first_aid_guidance,Seed Data,first_aid
 ibuprofen use,medication_inquiry,Seed Data,medication
 ibuprofenn use,medication_inquiry,Seed Data,medication
 ibuprofen info,medication_inquiry,Seed Data,medication
