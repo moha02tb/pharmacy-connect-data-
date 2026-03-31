@@ -1,45 +1,17 @@
 """
 tests/test_meddialog_loader.py – Unit tests for the MedDialog integration.
 
-These tests use only the standard library and do **not** require the
-``datasets`` package to be installed; the Hugging Face loader is stubbed
-via ``unittest.mock``.
+These tests use only the standard library and do **not** require any external
+packages; all loading is done from temporary local files written during the
+test.
 """
 
-import sys
-import types
 import unittest
 from typing import Dict, List
-from unittest.mock import MagicMock, patch
-
-
-# ---------------------------------------------------------------------------
-# Helpers to import our modules without the optional 'datasets' package
-# ---------------------------------------------------------------------------
-
-def _make_fake_datasets_module() -> types.ModuleType:
-    """Return a minimal fake ``datasets`` module."""
-    fake = types.ModuleType("datasets")
-
-    def load_dataset(
-        name: str,
-        split: str = "train",
-        cache_dir: "str | None" = None,
-        streaming: bool = False,
-    ) -> list:
-        return []
-
-    fake.load_dataset = load_dataset
-    return fake
 
 
 class TestMedDialogLoader(unittest.TestCase):
     """Tests for MedDialogLoader."""
-
-    def setUp(self):
-        # Inject a fake 'datasets' module so imports don't fail
-        if "datasets" not in sys.modules:
-            sys.modules["datasets"] = _make_fake_datasets_module()
 
     def _make_loader(self, **kwargs):
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
@@ -215,45 +187,54 @@ class TestMedDialogLoader(unittest.TestCase):
         self.assertEqual(pairs[0]["question"], "Do I need a prescription for antibiotics?")
 
     def test_load_returns_records(self):
-        """load() should return filtered Q&A records from the dataset."""
+        """load() filters Q&A records from a local file."""
+        import json
+        import os
+        import tempfile
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
 
-        fake_dataset = [
+        rows = [
             {"utterances": ["What medication do I take?", "Take ibuprofen 400mg."]},
             {"utterances": ["What is the weather?", "It is sunny."]},
         ]
-        with patch("data_collection.scrapers.meddialog_loader.load_dataset",
-                   return_value=fake_dataset, create=True):
-            # Patch the datasets.load_dataset inside the loader
-            import datasets as _ds
-            original = _ds.load_dataset
-            _ds.load_dataset = MagicMock(return_value=fake_dataset)
-            try:
-                loader = MedDialogLoader(filter_pharmacy=True)
-                # We cannot actually call load() here without the real HF client,
-                # but we can verify the filtering helper works correctly.
-                self.assertTrue(loader._is_pharmacy_relevant("What medication do I take?"))
-                self.assertFalse(loader._is_pharmacy_relevant("What is the weather?"))
-            finally:
-                _ds.load_dataset = original
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(rows, f)
+            tmp = f.name
+
+        try:
+            loader = MedDialogLoader(local_file=tmp, filter_pharmacy=True)
+            records = loader.load()
+            # Only the medication question is pharmacy-relevant
+            self.assertEqual(len(records), 1)
+            self.assertIn("medication", records[0]["question"])
+        finally:
+            os.unlink(tmp)
 
     def test_max_records_limit(self):
-        """_is_pharmacy_relevant used in load() respects max_records."""
+        """load() honours the max_records limit."""
+        import json
+        import os
+        import tempfile
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
-        loader = MedDialogLoader(filter_pharmacy=False)
-        self.assertIsNotNone(loader)
 
-    def test_use_streaming_default_true(self):
-        """use_streaming defaults to True."""
-        from data_collection.scrapers.meddialog_loader import MedDialogLoader
-        loader = MedDialogLoader()
-        self.assertTrue(loader.use_streaming)
+        rows = [
+            {"utterances": [f"What medication is drug{i}?", f"Drug{i} answer."]}
+            for i in range(20)
+        ]
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(rows, f)
+            tmp = f.name
 
-    def test_use_streaming_can_be_disabled(self):
-        """use_streaming can be set to False."""
-        from data_collection.scrapers.meddialog_loader import MedDialogLoader
-        loader = MedDialogLoader(use_streaming=False)
-        self.assertFalse(loader.use_streaming)
+        try:
+            loader = MedDialogLoader(local_file=tmp, filter_pharmacy=True)
+            records = loader.load(max_records=5)
+            self.assertEqual(len(records), 5)
+        finally:
+            os.unlink(tmp)
 
     def test_max_retries_default(self):
         """max_retries defaults to 3."""
@@ -267,97 +248,92 @@ class TestMedDialogLoader(unittest.TestCase):
         loader = MedDialogLoader(max_retries=0)
         self.assertEqual(loader.max_retries, 1)
 
-    def test_load_with_retry_passes_streaming_flag(self):
-        """_load_with_retry forwards the streaming flag to load_dataset."""
+    def test_load_no_file_raises_value_error(self):
+        """load() raises ValueError when no local_file is configured."""
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
-        import datasets as _ds
+        loader = MedDialogLoader()
+        with self.assertRaises(ValueError):
+            loader.load()
 
-        calls = []
+    def test_load_missing_file_raises_file_not_found(self):
+        """load() raises FileNotFoundError when the file does not exist."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        loader = MedDialogLoader(local_file="/nonexistent/path/dataset.jsonl")
+        with self.assertRaises(FileNotFoundError):
+            loader.load()
 
-        def fake_load(name, split="train", cache_dir=None, streaming=False):
-            calls.append({"name": name, "streaming": streaming})
-            return []
-
-        original = _ds.load_dataset
-        _ds.load_dataset = fake_load
-        try:
-            loader = MedDialogLoader(use_streaming=True)
-            loader._load_with_retry(fake_load)
-            self.assertEqual(len(calls), 1)
-            self.assertTrue(calls[0]["streaming"])
-        finally:
-            _ds.load_dataset = original
-
-    def test_load_with_retry_retries_on_failure(self):
-        """_load_with_retry retries up to max_retries times on exceptions."""
-        import unittest.mock as mock
+    def test_load_jsonl_file(self):
+        """load() reads a JSONL (newline-delimited JSON) file correctly."""
+        import os
+        import tempfile
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
 
-        attempt_count = 0
-
-        def always_fail(name, split="train", cache_dir=None, streaming=False):
-            nonlocal attempt_count
-            attempt_count += 1
-            raise ConnectionError("simulated network error")
-
-        loader = MedDialogLoader(max_retries=3)
-        with mock.patch("time.sleep"):  # skip actual sleep in tests
-            with self.assertRaises(RuntimeError):
-                loader._load_with_retry(always_fail)
-        self.assertEqual(attempt_count, 3)
-
-    def test_load_with_retry_succeeds_on_second_attempt(self):
-        """_load_with_retry returns the dataset after a transient failure."""
-        import unittest.mock as mock
-        from data_collection.scrapers.meddialog_loader import MedDialogLoader
-
-        call_count = 0
-
-        def fail_once(name, split="train", cache_dir=None, streaming=False):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise ConnectionError("transient error")
-            return ["row1", "row2"]
-
-        loader = MedDialogLoader(max_retries=3)
-        with mock.patch("time.sleep"):
-            result = loader._load_with_retry(fail_once)
-        self.assertEqual(result, ["row1", "row2"])
-        self.assertEqual(call_count, 2)
-
-    def test_load_streaming_stops_at_max_records(self):
-        """In streaming mode, load() stops fetching once max_records is hit."""
-        import datasets as _ds
-        from data_collection.scrapers.meddialog_loader import MedDialogLoader
-
-        # All rows contain "medication" so all are pharmacy-relevant
-        fake_dataset = [
-            {"utterances": [f"What medication is drug{i}?", f"Drug{i} answer."]}
-            for i in range(20)
+        lines = [
+            '{"question": "What medication should I take?", "answer": "Take ibuprofen."}',
+            '{"question": "How is the weather?", "answer": "It is sunny."}',
         ]
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("\n".join(lines))
+            tmp = f.name
 
-        rows_consumed = [0]
-        original_load = _ds.load_dataset
-
-        def fake_load(name, split="train", cache_dir=None, streaming=False):
-            def gen():
-                for row in fake_dataset:
-                    rows_consumed[0] += 1
-                    yield row
-
-            return gen()
-
-        _ds.load_dataset = fake_load
         try:
-            loader = MedDialogLoader(filter_pharmacy=True, use_streaming=True, max_retries=1)
-            records = loader.load(max_records=5)
-            # All questions are pharmacy-relevant, so exactly 5 should be returned
-            self.assertEqual(len(records), 5)
-            # Should have stopped early, not consumed all 20 rows
-            self.assertLess(rows_consumed[0], 20)
+            loader = MedDialogLoader(local_file=tmp, filter_pharmacy=True)
+            records = loader.load()
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["question"], "What medication should I take?")
         finally:
-            _ds.load_dataset = original_load
+            os.unlink(tmp)
+
+    def test_load_csv_file(self):
+        """load() reads a CSV file (with header) correctly."""
+        import os
+        import tempfile
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+
+        csv_content = (
+            "question,answer\n"
+            "What is the correct dosage for amoxicillin?,Take 500mg three times a day.\n"
+            "Tell me a joke,Why did the chicken cross the road?\n"
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(csv_content)
+            tmp = f.name
+
+        try:
+            loader = MedDialogLoader(local_file=tmp, filter_pharmacy=True)
+            records = loader.load()
+            self.assertEqual(len(records), 1)
+            self.assertIn("dosage", records[0]["question"])
+        finally:
+            os.unlink(tmp)
+
+    def test_load_no_filter(self):
+        """load() with filter_pharmacy=False returns all records."""
+        import json
+        import os
+        import tempfile
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+
+        rows = [
+            {"question": "What medication is safe?", "answer": "Ibuprofen."},
+            {"question": "What is the weather?", "answer": "Sunny."},
+        ]
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(rows, f)
+            tmp = f.name
+
+        try:
+            loader = MedDialogLoader(local_file=tmp, filter_pharmacy=False)
+            records = loader.load()
+            self.assertEqual(len(records), 2)
+        finally:
+            os.unlink(tmp)
 
 
 class TestMedDialogKBBuilder(unittest.TestCase):
