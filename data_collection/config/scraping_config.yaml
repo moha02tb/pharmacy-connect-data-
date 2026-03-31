@@ -1,0 +1,62 @@
+# scraping_config.yaml – Pharmacy Connect data-collection configuration.
+#
+# This file provides a YAML-based view of all tunable pipeline parameters.
+# The values here mirror the defaults in data_collection/config.py; edit
+# this file to override settings without modifying Python source code.
+
+# ── MedDialog (Hugging Face) ──────────────────────────────────────────────────
+meddialog:
+  # Hugging Face dataset identifier
+  dataset_id: "OpenMed/MedDialog"
+  # Dataset split to load
+  split: "train"
+  # Keep only conversations that contain a pharmacy-relevant keyword.
+  # Set to false to load all conversations (useful for debugging).
+  filter_pharmacy: true
+  # Maximum Q&A pairs to extract per run (null = no limit).
+  # 65 000 pairs provides a balanced training corpus while keeping RAM usage
+  # and wall-clock time manageable on a typical developer machine.
+  max_records: 65000
+  # Optional local cache directory for the downloaded dataset.
+  # Defaults to the Hugging Face default (~/.cache/huggingface/datasets).
+  # Override by setting the HF_DATASETS_CACHE environment variable.
+  cache_dir: null
+
+# ── Text processing ───────────────────────────────────────────────────────────
+processing:
+  # Minimum question length in characters; shorter questions are dropped.
+  min_text_length: 10
+  # Maximum text length for training rows; longer texts are truncated.
+  max_text_length: 500
+  # When true, the doctor's answer is appended to the training text field.
+  include_answer_in_text: false
+
+# ── Intent mapping ────────────────────────────────────────────────────────────
+intent_mapping:
+  # Minimum keyword-match confidence score (0–1) to assign a specific intent.
+  # Records below this threshold receive the "general_health_question" label.
+  confidence_threshold: 0.3
+
+# ── Knowledge base ────────────────────────────────────────────────────────────
+knowledge_base:
+  # Maximum character length for answer content stored in KB entries.
+  max_answer_length: 1000
+
+# ── DrugBank (optional) ───────────────────────────────────────────────────────
+drugbank:
+  # Absolute or relative path to a local DrugBank JSON/CSV file.
+  # Leave empty or unset to skip DrugBank enrichment.
+  # Can also be set via the DRUGBANK_FILE environment variable.
+  file_path: ""
+  max_records: 13000
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output:
+  directory: "output/"
+  knowledge_base: "output/knowledge_base.json"
+  training_data: "output/training_data.csv"
+
+# ── Seed data ─────────────────────────────────────────────────────────────────
+seed_data:
+  # Directory containing optional local seed Q&A files (JSON or CSV).
+  directory: "data_collection/data/seed_data/"

@@ -25,7 +25,6 @@ def _make_fake_datasets_module() -> types.ModuleType:
         name: str,
         split: str = "train",
         cache_dir: "str | None" = None,
-        trust_remote_code: bool = False,
     ) -> list:
         return []
 
@@ -75,6 +74,70 @@ class TestMedDialogLoader(unittest.TestCase):
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
         # Odd number – last utterance is unpaired and should be ignored
         row = {"utterances": ["Q1", "A1", "Q2"]}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+
+    def test_extract_qa_pairs_dict_format(self):
+        """Dict utterances with speaker/utterance keys are extracted correctly."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "utterances": [
+                {"speaker": "Patient", "utterance": "What medication should I take?"},
+                {"speaker": "Doctor", "utterance": "Take ibuprofen 400mg."},
+                {"speaker": "Patient", "utterance": "Any side effects?"},
+                {"speaker": "Doctor", "utterance": "Possible stomach upset."},
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 2)
+        self.assertEqual(pairs[0]["question"], "What medication should I take?")
+        self.assertEqual(pairs[0]["answer"], "Take ibuprofen 400mg.")
+
+    def test_extract_qa_pairs_dict_format_role_key(self):
+        """Dict utterances using 'role' instead of 'speaker' are handled."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "utterances": [
+                {"role": "patient", "text": "Do I need a prescription?"},
+                {"role": "doctor", "text": "Yes, this requires a prescription."},
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "Do I need a prescription?")
+
+    def test_extract_qa_pairs_role_prefixed_strings(self):
+        """Strings prefixed with 'Patient:' / 'Doctor:' are handled correctly."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "utterances": [
+                "Patient: What is the correct dosage?",
+                "Doctor: The usual dose is 500mg twice a day.",
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "What is the correct dosage?")
+        self.assertEqual(pairs[0]["answer"], "The usual dose is 500mg twice a day.")
+
+    def test_extract_qa_pairs_dialogue_field_alias(self):
+        """The 'dialogue' field alias is tried when 'utterances' is absent."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"dialogue": ["How long should I take antibiotics?", "Complete the full course."]}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+
+    def test_extract_qa_pairs_dialog_field_alias(self):
+        """The 'dialog' field alias is tried when other fields are absent."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"dialog": ["Is aspirin safe?", "In normal doses, yes."]}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+
+    def test_extract_qa_pairs_conversations_field_alias(self):
+        """The 'conversations' field alias is tried as a last resort."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"conversations": ["Can I take this with food?", "Yes, take it with meals."]}
         pairs = MedDialogLoader._extract_qa_pairs(row)
         self.assertEqual(len(pairs), 1)
 
