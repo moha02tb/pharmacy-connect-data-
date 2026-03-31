@@ -142,6 +142,78 @@ class TestMedDialogLoader(unittest.TestCase):
         pairs = MedDialogLoader._extract_qa_pairs(row)
         self.assertEqual(len(pairs), 1)
 
+    def test_extract_qa_pairs_conversation_singular_field_alias(self):
+        """The 'conversation' (singular) field alias is tried."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "conversation": [
+                {"role": "patient", "text": "What medication should I take?"},
+                {"role": "doctor", "text": "Take ibuprofen 400mg."},
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "What medication should I take?")
+
+    def test_extract_qa_pairs_messages_field_alias(self):
+        """The 'messages' field alias is tried (e.g. OpenAI-style chat format)."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "messages": [
+                {"role": "user", "content": "What is the correct dosage?"},
+                {"role": "assistant", "content": "Take 500mg twice a day."},
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "What is the correct dosage?")
+        self.assertEqual(pairs[0]["answer"], "Take 500mg twice a day.")
+
+    def test_extract_qa_pairs_turns_field_alias(self):
+        """The 'turns' field alias is tried."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"turns": ["Can I refill my prescription?", "Yes, visit any pharmacy."]}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+
+    def test_extract_qa_pairs_flat_qa_format(self):
+        """Rows with direct 'question'/'answer' fields are handled."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"question": "What are the side effects?", "answer": "Nausea and headache."}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "What are the side effects?")
+        self.assertEqual(pairs[0]["answer"], "Nausea and headache.")
+
+    def test_extract_qa_pairs_query_response_format(self):
+        """Rows with 'query'/'response' fields are handled."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"query": "Is this drug safe?", "response": "Yes, at recommended doses."}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "Is this drug safe?")
+
+    def test_extract_qa_pairs_description_answer_format(self):
+        """Rows with 'description'/'answer' fields are handled."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {"description": "Patient asks about medication dose.", "answer": "Take 200mg."}
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "Patient asks about medication dose.")
+
+    def test_extract_qa_pairs_content_key_in_dict_utterances(self):
+        """Dict utterances with 'content' key (OpenAI format) are extracted."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        row = {
+            "utterances": [
+                {"speaker": "patient", "content": "Do I need a prescription for antibiotics?"},
+                {"speaker": "doctor", "content": "Yes, antibiotics require a prescription."},
+            ]
+        }
+        pairs = MedDialogLoader._extract_qa_pairs(row)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["question"], "Do I need a prescription for antibiotics?")
+
     def test_load_returns_records(self):
         """load() should return filtered Q&A records from the dataset."""
         from data_collection.scrapers.meddialog_loader import MedDialogLoader

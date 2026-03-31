@@ -154,8 +154,19 @@ class MedDialogLoader:
             )
 
         records: List[Dict] = []
+        rows_seen = 0
+        _first_row_logged = False
         for row in dataset:
+            rows_seen += 1
             pairs = self._extract_qa_pairs(row)
+            # Log the first row's structure so unknown formats are easy to spot
+            if not _first_row_logged:
+                _first_row_logged = True
+                logger.debug(
+                    "First dataset row keys: %s  (first pair extracted: %s)",
+                    list(row.keys()) if isinstance(row, dict) else type(row).__name__,
+                    pairs[0] if pairs else "none",
+                )
             for pair in pairs:
                 if self.filter_pharmacy and not self._is_pharmacy_relevant(pair["question"]):
                     continue
@@ -172,7 +183,11 @@ class MedDialogLoader:
                     logger.info("Reached max_records limit (%d).", max_records)
                     return records
 
-        logger.info("Loaded %d pharmacy-relevant Q&A pairs.", len(records))
+        logger.info(
+            "Loaded %d pharmacy-relevant Q&A pairs from %d rows.",
+            len(records),
+            rows_seen,
+        )
         return records
 
     # ── Internal download helper ──────────────────────────────────────────────
@@ -235,8 +250,8 @@ class MedDialogLoader:
         Supports three MedDialog utterance format variants:
 
         1. **Dict list** – each element is a dict with ``speaker`` / ``role``
-           and ``utterance`` / ``text`` keys.  Patient and doctor turns are
-           identified by the ``speaker`` value (e.g. ``"Patient"``,
+           and ``utterance`` / ``text`` / ``content`` keys.  Patient and doctor
+           turns are identified by the ``speaker`` value (e.g. ``"Patient"``,
            ``"Doctor"``).
         2. **Role-prefixed strings** – each element is a string starting with
            a role label such as ``"Patient: ..."`` or ``"Doctor: ..."``.
@@ -244,17 +259,48 @@ class MedDialogLoader:
            patient utterance and odd-indexed elements are the doctor response.
 
         Multiple field-name aliases are tried in order:
-        ``utterances``, ``dialogue``, ``dialog``, ``conversations``.
+        ``utterances``, ``dialogue``, ``dialog``, ``conversations``,
+        ``conversation``, ``messages``, ``turns``.
+
+        When none of those fields are present the method also checks for a
+        flat Q&A row (``question`` / ``answer`` keys) and for rows that
+        combine a ``description`` field (patient question) with a ``response``
+        / ``answer`` field (doctor answer).
         """
         utterances: list = (
             row.get("utterances")
             or row.get("dialogue")
             or row.get("dialog")
             or row.get("conversations")
+            or row.get("conversation")
+            or row.get("messages")
+            or row.get("turns")
             or []
         )
 
         if not utterances:
+            # ── Flat Q&A format: {"question": "...", "answer": "..."} ──────────
+            question = str(row.get("question") or row.get("query") or "").strip()
+            answer = str(
+                row.get("answer") or row.get("response") or row.get("reply") or ""
+            ).strip()
+            if question and answer:
+                return [{"question": question, "answer": answer}]
+
+            # ── Description + answer format ───────────────────────────────────
+            description = str(row.get("description") or "").strip()
+            answer = str(
+                row.get("answer") or row.get("response") or row.get("reply") or ""
+            ).strip()
+            if description and answer:
+                return [{"question": description, "answer": answer}]
+
+            # ── Unknown format – log the row keys on first encounter ──────────
+            if row:
+                logger.debug(
+                    "Row with unrecognised structure (keys: %s) yielded no pairs.",
+                    list(row.keys()),
+                )
             return []
 
         pairs: List[Dict] = []
@@ -265,7 +311,9 @@ class MedDialogLoader:
             pending_patient: Optional[str] = None
             for utt in utterances:
                 speaker = str(utt.get("speaker") or utt.get("role") or "").lower()
-                text = str(utt.get("utterance") or utt.get("text") or "").strip()
+                text = str(
+                    utt.get("utterance") or utt.get("text") or utt.get("content") or ""
+                ).strip()
                 if not text:
                     continue
                 if any(s in speaker for s in _PATIENT_ROLES):
