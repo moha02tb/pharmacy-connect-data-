@@ -48,6 +48,19 @@ _PHARMACY_KEYWORDS = [
     "brand",
 ]
 
+# Speaker-role substrings used to identify patient vs. doctor turns in
+# dict-format utterances (matched case-insensitively via ``in``).
+_PATIENT_ROLES = ("patient", "user", "customer")
+_DOCTOR_ROLES = ("doctor", "physician", "assistant")
+
+# Role-label prefixes used to identify patient vs. doctor turns in
+# role-prefixed string utterances (matched case-insensitively via
+# ``startswith``).  Abbreviations ``p:`` and ``d:`` are included for
+# datasets that use terse role labels.
+_PATIENT_PREFIXES: tuple = tuple(r + ":" for r in _PATIENT_ROLES) + ("p:",)
+_DOCTOR_PREFIXES: tuple = tuple(r + ":" for r in _DOCTOR_ROLES) + ("d:",)
+_ALL_ROLE_PREFIXES: tuple = _PATIENT_PREFIXES + _DOCTOR_PREFIXES
+
 
 class MedDialogLoader:
     """
@@ -113,7 +126,6 @@ class MedDialogLoader:
             self.dataset_name,
             split=self.split,
             cache_dir=self.cache_dir,
-            trust_remote_code=True,
         )
         logger.info("Dataset loaded: %d conversations", len(dataset))
 
@@ -146,14 +158,76 @@ class MedDialogLoader:
         """
         Extract Q&A pairs from a single dataset row.
 
-        MedDialog stores conversations as a list of utterances.  Even-indexed
-        utterances are the patient; odd-indexed are the doctor.
+        Supports three MedDialog utterance format variants:
+
+        1. **Dict list** – each element is a dict with ``speaker`` / ``role``
+           and ``utterance`` / ``text`` keys.  Patient and doctor turns are
+           identified by the ``speaker`` value (e.g. ``"Patient"``,
+           ``"Doctor"``).
+        2. **Role-prefixed strings** – each element is a string starting with
+           a role label such as ``"Patient: ..."`` or ``"Doctor: ..."``.
+        3. **Plain alternating strings** – even-indexed elements are the
+           patient utterance and odd-indexed elements are the doctor response.
+
+        Multiple field-name aliases are tried in order:
+        ``utterances``, ``dialogue``, ``dialog``, ``conversations``.
         """
-        utterances = row.get("utterances") or []
-        # Fallback for datasets that store utterances as 'dialogue'
+        utterances: list = (
+            row.get("utterances")
+            or row.get("dialogue")
+            or row.get("dialog")
+            or row.get("conversations")
+            or []
+        )
+
         if not utterances:
-            utterances = row.get("dialogue") or []
+            return []
+
         pairs: List[Dict] = []
+
+        # ── Format 1: dict-format utterances ─────────────────────────────────
+        # (utterances is non-empty at this point; the early return above guards both accesses)
+        if isinstance(utterances[0], dict):
+            pending_patient: Optional[str] = None
+            for utt in utterances:
+                speaker = str(utt.get("speaker") or utt.get("role") or "").lower()
+                text = str(utt.get("utterance") or utt.get("text") or "").strip()
+                if not text:
+                    continue
+                if any(s in speaker for s in _PATIENT_ROLES):
+                    pending_patient = text
+                elif any(s in speaker for s in _DOCTOR_ROLES):
+                    if pending_patient:
+                        pairs.append({"question": pending_patient, "answer": text})
+                        pending_patient = None
+            return pairs
+
+        # ── Format 2 & 3: string utterances ──────────────────────────────────
+        first = str(utterances[0]).lower()
+        if any(first.startswith(p) for p in _ALL_ROLE_PREFIXES):
+            # Role-prefixed strings
+            pending_patient = None
+            for utt in utterances:
+                raw = str(utt)
+                lower = raw.lower()
+                is_patient = any(lower.startswith(p) for p in _PATIENT_PREFIXES)
+                is_doctor = any(lower.startswith(p) for p in _DOCTOR_PREFIXES)
+                # Strip the role prefix
+                text = raw
+                for prefix in _ALL_ROLE_PREFIXES:
+                    if lower.startswith(prefix):
+                        text = raw[len(prefix):].strip()
+                        break
+                if not text:
+                    continue
+                if is_patient:
+                    pending_patient = text
+                elif is_doctor and pending_patient:
+                    pairs.append({"question": pending_patient, "answer": text})
+                    pending_patient = None
+            return pairs
+
+        # Plain alternating string list (even = patient, odd = doctor)
         for i in range(0, len(utterances) - 1, 2):
             q = str(utterances[i]).strip()
             a = str(utterances[i + 1]).strip()
