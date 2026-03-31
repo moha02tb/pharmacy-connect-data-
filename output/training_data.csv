@@ -85,3 +85,137 @@ ibuprofen use,medication_inquiry,Seed Data,medication
 ibuprofenn use,medication_inquiry,Seed Data,medication
 ibuprofen info,medication_inquiry,Seed Data,medication
 tell me about ibuprofen,medication_inquiry,Seed Data,medication
+What is metformin used for?,medication_inquiry,Seed Data,medication
+Tell me about lisinopril,medication_inquiry,Seed Data,medication
+What is metoprolol prescribed for?,medication_inquiry,Seed Data,medication
+What conditions does Prozac treat?,medication_inquiry,Seed Data,medication
+What is atorvastatin?,medication_inquiry,Seed Data,medication
+What is omeprazole used for?,medication_inquiry,Seed Data,medication
+What does Zoloft treat?,medication_inquiry,Seed Data,medication
+Is aspirin a blood thinner?,medication_inquiry,Seed Data,medication
+What kind of drug is prednisone?,medication_inquiry,Seed Data,medication
+What is sertraline?,medication_inquiry,Seed Data,medication
+Does aspirin interact with blood thinners?,drug_interaction_check,Seed Data,drug_interaction
+Can I take melatonin with sertraline?,drug_interaction_check,Seed Data,drug_interaction
+What happens if I mix alcohol with metformin?,drug_interaction_check,Seed Data,drug_interaction
+Is it safe to take ibuprofen after surgery?,drug_interaction_check,Seed Data,drug_interaction
+What medications should not be taken with warfarin?,drug_interaction_check,Seed Data,drug_interaction
+Can I combine antibiotics with birth control?,drug_interaction_check,Seed Data,drug_interaction
+Does grapefruit affect blood pressure medication?,drug_interaction_check,Seed Data,drug_interaction
+What drugs interact with statins?,drug_interaction_check,Seed Data,drug_interaction
+Can I take sleep aids with antidepressants?,drug_interaction_check,Seed Data,drug_interaction
+Is it ok to take aspirin and ibuprofen together?,drug_interaction_check,Seed Data,drug_interaction
+Can I drink coffee while taking antibiotics?,drug_interaction_check,Seed Data,drug_interaction
+What are the side effects of metformin?,side_effects_inquiry,Seed Data,side_effects
+Does amoxicillin cause diarrhea?,side_effects_inquiry,Seed Data,side_effects
+Can lisinopril cause a dry cough?,side_effects_inquiry,Seed Data,side_effects
+What are the side effects of prednisone?,side_effects_inquiry,Seed Data,side_effects
+Does Prozac cause weight gain?,side_effects_inquiry,Seed Data,side_effects
+What are metoprolol side effects?,side_effects_inquiry,Seed Data,side_effects
+Can statins cause muscle pain?,side_effects_inquiry,Seed Data,side_effects
+What are common side effects of birth control pills?,side_effects_inquiry,Seed Data,side_effects
+Does melatonin have any side effects?,side_effects_inquiry,Seed Data,side_effects
+What are the side effects of Zoloft?,side_effects_inquiry,Seed Data,side_effects
+Sertraline adverse effects,side_effects_inquiry,Seed Data,side_effects
+Metformin negative effects,side_effects_inquiry,Seed Data,side_effects
+What is the recommended dose of vitamin D?,dosage_inquiry,Seed Data,dosage
+How much metformin should I take for type 2 diabetes?,dosage_inquiry,Seed Data,dosage
+What is the adult dosage for Benadryl?,dosage_inquiry,Seed Data,dosage
+How many mg of melatonin should I take?,dosage_inquiry,Seed Data,dosage
+How often can I take Zyrtec?,dosage_inquiry,Seed Data,dosage
+What is the maximum daily dose of Advil?,dosage_inquiry,Seed Data,dosage
+How do I dose children's Tylenol by weight?,dosage_inquiry,Seed Data,dosage
+What is the correct dose of amoxicillin for adults?,dosage_inquiry,Seed Data,dosage
+How much ibuprofen is safe per day?,dosage_inquiry,Seed Data,dosage
+How many times a day can I take my antibiotic?,dosage_inquiry,Seed Data,dosage
+What dose of aspirin is safe to take daily?,dosage_inquiry,Seed Data,dosage
+How much acetaminophen is too much?,dosage_inquiry,Seed Data,dosage
+What pharmacies are open right now?,pharmacy_location,Seed Data,pharmacy
+CVS pharmacy near me,pharmacy_location,Seed Data,pharmacy
+Walgreens pharmacy hours,pharmacy_location,Seed Data,pharmacy
+Is there a 24-hour Walgreens near me?,pharmacy_location,Seed Data,pharmacy
+What time does the pharmacy close today?,pharmacy_location,Seed Data,pharmacy
+Which pharmacy accepts my insurance?,pharmacy_location,Seed Data,pharmacy
+Where can I pick up my prescription?,pharmacy_location,Seed Data,pharmacy
+Do pharmacies deliver medications?,pharmacy_location,Seed Data,pharmacy
+Is there a pharmacy open on Sunday?,pharmacy_location,Seed Data,pharmacy
+Find me a Rite Aid near me,pharmacy_location,Seed Data,pharmacy
+Closest pharmacy that has my medication in stock,pharmacy_location,Seed Data,pharmacy
+Can I transfer my prescription to another pharmacy?,pharmacy_location,Seed Data,pharmacy
+My prescription is running low how do I refill it?,prescription_refill,Seed Data,pharmacy
+I need to renew my prescription,prescription_refill,Seed Data,pharmacy
+Can I get an early refill on my medication?,prescription_refill,Seed Data,pharmacy
+How do I set up automatic refills?,prescription_refill,Seed Data,pharmacy
+My prescription expired can I still refill it?,prescription_refill,Seed Data,pharmacy
+How many refills do I have left on my prescription?,prescription_refill,Seed Data,pharmacy
+I need to reorder my blood pressure medication,prescription_refill,Seed Data,pharmacy
+My pharmacy says no more refills are available,prescription_refill,Seed Data,pharmacy
+How do I transfer my prescription to a new pharmacy?,prescription_refill,Seed Data,pharmacy
+I ran out of my medication how do I get more?,prescription_refill,Seed Data,pharmacy
+How long does it take to process a new prescription?,prescription_refill,Seed Data,pharmacy
+Do I need a COVID booster?,vaccination_info,Seed Data,vaccination
+What vaccines are required for travel abroad?,vaccination_info,Seed Data,vaccination
+When should my child get the MMR vaccine?,vaccination_info,Seed Data,vaccination
+Can I get the flu shot while pregnant?,vaccination_info,Seed Data,vaccination
+What are the side effects of the COVID vaccine?,vaccination_info,Seed Data,vaccination
+Should I get the shingles vaccine?,vaccination_info,Seed Data,vaccination
+Do adults need a tetanus booster?,vaccination_info,Seed Data,vaccination
+What vaccines do adults need every year?,vaccination_info,Seed Data,vaccination
+How long does the flu vaccine protect you?,vaccination_info,Seed Data,vaccination
+Is the pneumonia vaccine a one-time shot?,vaccination_info,Seed Data,vaccination
+Someone is having a heart attack what do I do?,emergency_assistance,Seed Data,emergency
+I think I took too many pills,emergency_assistance,Seed Data,emergency
+My child swallowed something dangerous,emergency_assistance,Seed Data,emergency
+Someone is not waking up,emergency_assistance,Seed Data,emergency
+My friend is having a severe allergic reaction,emergency_assistance,Seed Data,emergency
+Someone collapsed on the street,emergency_assistance,Seed Data,emergency
+Help my baby swallowed medication,emergency_assistance,Seed Data,emergency
+Someone is having an allergic reaction to a bee sting,emergency_assistance,Seed Data,emergency
+What are the signs of a severe drug reaction?,emergency_assistance,Seed Data,emergency
+Someone is choking and not responding,emergency_assistance,Seed Data,emergency
+Can I take vitamins with my medication?,general_health_question,Seed Data,general_health
+What does it mean when a drug is expired?,general_health_question,Seed Data,general_health
+What is the difference between OTC and prescription drugs?,general_health_question,Seed Data,general_health
+What happens if I accidentally take a double dose?,general_health_question,Seed Data,general_health
+Should I take my medication with food?,general_health_question,Seed Data,general_health
+How do I read a drug label?,general_health_question,Seed Data,general_health
+What is a drug formulary?,general_health_question,Seed Data,general_health
+Are generic drugs as effective as brand name?,general_health_question,Seed Data,general_health
+Can I stop taking my medication when I feel better?,general_health_question,Seed Data,general_health
+What is the shelf life of over the counter medications?,general_health_question,Seed Data,general_health
+How do I properly dispose of unused medication?,general_health_question,Seed Data,general_health
+What's up,greeting,Seed Data,general_health
+Hello there,greeting,Seed Data,general_health
+Hi I need some help,greeting,Seed Data,general_health
+Good evening,greeting,Seed Data,general_health
+Morning,greeting,Seed Data,general_health
+Howdy,greeting,Seed Data,general_health
+Hi how are you,greeting,Seed Data,general_health
+Good day,greeting,Seed Data,general_health
+Hello can you help me,greeting,Seed Data,general_health
+Hi I have a question,greeting,Seed Data,general_health
+Hey there,greeting,Seed Data,general_health
+Thank you for your help,farewell,Seed Data,general_health
+That's all I needed,farewell,Seed Data,general_health
+Alright see you,farewell,Seed Data,general_health
+Bye bye,farewell,Seed Data,general_health
+I'm done thank you,farewell,Seed Data,general_health
+That helped a lot thanks,farewell,Seed Data,general_health
+Good bye have a nice day,farewell,Seed Data,general_health
+Thanks a lot,farewell,Seed Data,general_health
+Thank you goodbye,farewell,Seed Data,general_health
+Take care,farewell,Seed Data,general_health
+All done thanks,farewell,Seed Data,general_health
+I got what I needed thanks,farewell,Seed Data,general_health
+Can you order pizza for me?,out_of_scope,Seed Data,general_health
+What is 2 plus 2?,out_of_scope,Seed Data,general_health
+What movies are playing tonight?,out_of_scope,Seed Data,general_health
+Play some music for me,out_of_scope,Seed Data,general_health
+What is the capital of France?,out_of_scope,Seed Data,general_health
+Can you help me with my math homework?,out_of_scope,Seed Data,general_health
+What is the latest news?,out_of_scope,Seed Data,general_health
+Who won the game last night?,out_of_scope,Seed Data,general_health
+What is the meaning of life?,out_of_scope,Seed Data,general_health
+What's the best restaurant near me?,out_of_scope,Seed Data,general_health
+Book me a flight to New York,out_of_scope,Seed Data,general_health
+Can you write a poem for me?,out_of_scope,Seed Data,general_health
