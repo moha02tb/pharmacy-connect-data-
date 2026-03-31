@@ -20,11 +20,81 @@ import json
 import logging
 import os
 import pickle
+import re
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 SUPPORTED_BACKENDS = ("spacy", "bert")
+
+# Keywords that should trigger a first_aid_guidance override when the model
+# mis-classifies a query as general_health_question.
+_FIRST_AID_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "burn",
+        "burned",
+        "burning",
+        "scald",
+        "scalded",
+        "bleed",
+        "bleeding",
+        "wound",
+        "cut",
+        "laceration",
+        "choke",
+        "choking",
+        "seizure",
+        "fracture",
+        "sprain",
+        "sprained",
+        "cpr",
+        "first aid",
+        "bandage",
+    ]
+)
+
+# Keywords that should trigger an emergency_assistance override.
+_EMERGENCY_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "overdose",
+        "overdosed",
+        "unconscious",
+        "not breathing",
+        "stopped breathing",
+        "call 911",
+        "poison control",
+        "life threatening",
+    ]
+)
+
+
+def _apply_safety_override(text: str, predicted: str) -> str:
+    """
+    Override ``"general_health_question"`` predictions for queries that contain
+    explicit first-aid or emergency keywords.
+
+    This acts as a safety net to prevent high-confidence wrong predictions
+    (e.g. predicting ``general_health_question`` for "Help I got burned") from
+    returning an irrelevant response when the correct intent is clearly
+    first-aid or emergency-related based on keyword matching.
+
+    Word-boundary matching (``\\b``) is used to avoid false positives from
+    words that merely *contain* a keyword (e.g. "burnout" ≠ "burn").
+    """
+    if predicted != "general_health_question":
+        return predicted
+    lower = text.lower()
+    if any(
+        re.search(r"\b" + re.escape(kw) + r"\b", lower)
+        for kw in _FIRST_AID_OVERRIDE_KEYWORDS
+    ):
+        return "first_aid_guidance"
+    if any(
+        re.search(r"\b" + re.escape(kw) + r"\b", lower)
+        for kw in _EMERGENCY_OVERRIDE_KEYWORDS
+    ):
+        return "emergency_assistance"
+    return predicted
 
 
 class IntentClassifier:
@@ -79,18 +149,33 @@ class IntentClassifier:
         Predict the intent label for *text*.
 
         Returns ``"unknown"`` if the model has not been trained.
+
+        A keyword-based safety override is applied after the ML prediction: if
+        the model predicts ``"general_health_question"`` but the query contains
+        well-known first-aid or emergency keywords, the prediction is corrected
+        to ``"first_aid_guidance"`` or ``"emergency_assistance"`` respectively.
+        This prevents high-confidence wrong predictions for urgent queries.
         """
         if not self._is_trained:
             logger.warning("Model is not trained yet – returning 'unknown'.")
             return "unknown"
 
         if self.backend == "spacy":
-            return self._predict_spacy(text)
-        return self._predict_bert(text)
+            predicted = self._predict_spacy(text)
+        else:
+            predicted = self._predict_bert(text)
+
+        return _apply_safety_override(text, predicted)
 
     def predict_proba(self, text: str) -> Dict[str, float]:
         """
         Return a dict mapping each intent label to its confidence score.
+
+        Note: these are the raw ML model probabilities **before** the keyword
+        safety override applied in :meth:`predict`.  They reflect the model's
+        learned distribution and are useful for debugging and confidence
+        reporting; use :meth:`predict` to get the final, safety-corrected
+        intent label.
         """
         if not self._is_trained:
             return {}

@@ -49,3 +49,27 @@ See you later,farewell,Seed Data,general_health
 What is the weather today?,out_of_scope,Seed Data,general_health
 Tell me a joke,out_of_scope,Seed Data,general_health
 What is the stock market doing?,out_of_scope,Seed Data,general_health
+I got burned,first_aid_guidance,Seed Data,first_aid
+Help I got burned,first_aid_guidance,Seed Data,first_aid
+Burn from hot water what to do,first_aid_guidance,Seed Data,first_aid
+I touched something hot,first_aid_guidance,Seed Data,first_aid
+Burn injury treatment,first_aid_guidance,Seed Data,first_aid
+Skin burn first aid,first_aid_guidance,Seed Data,first_aid
+Oil burn on my hand,first_aid_guidance,Seed Data,first_aid
+Chemical burn help,first_aid_guidance,Seed Data,first_aid
+Burned my hand on the stove,first_aid_guidance,Seed Data,first_aid
+First aid for burns,first_aid_guidance,Seed Data,first_aid
+What to do when you get burned,first_aid_guidance,Seed Data,first_aid
+Minor burn treatment,first_aid_guidance,Seed Data,first_aid
+Severe burn first aid,first_aid_guidance,Seed Data,first_aid
+Burn blister what to do,first_aid_guidance,Seed Data,first_aid
+Got a burn from cooking,first_aid_guidance,Seed Data,first_aid
+Was it a chemical electrical or heat burn,first_aid_guidance,Seed Data,first_aid
+I am bleeding,first_aid_guidance,Seed Data,first_aid
+Someone is choking what do I do,first_aid_guidance,Seed Data,first_aid
+I sprained my ankle,first_aid_guidance,Seed Data,first_aid
+My wound won't stop bleeding,first_aid_guidance,Seed Data,first_aid
+ibuprofen use,medication_inquiry,Seed Data,medication
+ibuprofenn use,medication_inquiry,Seed Data,medication
+ibuprofen info,medication_inquiry,Seed Data,medication
+tell me about ibuprofen,medication_inquiry,Seed Data,medication
