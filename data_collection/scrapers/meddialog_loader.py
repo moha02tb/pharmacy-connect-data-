@@ -1,9 +1,16 @@
 """
-meddialog_loader.py – Load the OpenMed/MedDialog dataset from Hugging Face.
+meddialog_loader.py – Load the MedDialog dataset from a local file.
 
-The OpenMed/MedDialog dataset contains 1.47 M real doctor-patient
-conversations, making it an ideal training source for pharmacy intent
-classification.
+The dataset (OpenMed/MedDialog or any compatible format) can be downloaded
+manually from the web and processed locally without any network streaming or
+scraping.
+
+Supported local file formats
+-----------------------------
+* **JSON** – a JSON array of row objects, e.g. ``[{"question": "...",
+  "answer": "..."}, ...]``
+* **JSONL** – one JSON object per line (JSON Lines / newline-delimited JSON)
+* **CSV** – comma-separated values with a header row
 
 Usage
 -----
@@ -11,12 +18,15 @@ Usage
 
     from data_collection.scrapers.meddialog_loader import MedDialogLoader
 
-    loader = MedDialogLoader()
+    # Load from a locally downloaded file
+    loader = MedDialogLoader(local_file="data/meddialog.jsonl")
     records = loader.load(max_records=10_000)
 """
 
+import csv
+import json
 import logging
-import time
+import os
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -65,41 +75,51 @@ _ALL_ROLE_PREFIXES: tuple = _PATIENT_PREFIXES + _DOCTOR_PREFIXES
 
 class MedDialogLoader:
     """
-    Load and filter the **OpenMed/MedDialog** dataset from Hugging Face.
+    Load and filter a MedDialog-compatible dataset from a **local file**.
+
+    Download the dataset manually from the web (e.g. from
+    https://huggingface.co/datasets/OpenMed/MedDialog) and point this loader
+    at the saved file.  No network streaming or scraping is performed.
 
     Parameters
     ----------
+    local_file:
+        Path to the locally downloaded dataset file.  Supported formats:
+
+        * ``.json`` – JSON array of row objects
+        * ``.jsonl`` / ``.ndjson`` – one JSON object per line
+        * ``.csv`` – comma-separated values with a header row
+
+        When ``None`` (and the deprecated ``dataset_name`` parameter is also
+        absent), :meth:`load` raises :class:`ValueError`.
     dataset_name:
-        Hugging Face dataset identifier.  Defaults to ``"OpenMed/MedDialog"``.
+        *Deprecated.* Kept for backwards compatibility only; ignored when
+        ``local_file`` is provided.
     split:
-        Dataset split to use.  Defaults to ``"train"``.
+        *Deprecated.* Ignored when ``local_file`` is provided.
     filter_pharmacy:
         When ``True`` (default), keep only conversations that contain at least
         one pharmacy-relevant keyword in the patient utterance.
     cache_dir:
-        Optional path to a local directory for caching the downloaded dataset.
+        *Deprecated.* Ignored when loading from a local file.
     use_streaming:
-        When ``True`` (default), use Hugging Face *streaming* mode so rows are
-        fetched lazily from the hub.  The download stops as soon as
-        ``max_records`` pharmacy-relevant pairs have been collected, meaning
-        the full 1.47 M-row dataset is **never** downloaded in its entirety.
-        Set to ``False`` only when you need random access or ``len()`` on the
-        dataset object.
+        *Deprecated.* Streaming is never used when loading from a local file.
+        This parameter is kept for backwards compatibility only.
     max_retries:
-        Number of download attempts before raising an error.  Transient
-        network errors (e.g. connection timeouts) trigger an automatic retry
-        with an exponential back-off.  Defaults to ``3``.
+        *Deprecated.* Ignored when loading from a local file.
     """
 
     def __init__(
         self,
+        local_file: Optional[str] = None,
         dataset_name: str = "OpenMed/MedDialog",
         split: str = "train",
         filter_pharmacy: bool = True,
         cache_dir: Optional[str] = None,
-        use_streaming: bool = True,
+        use_streaming: bool = False,
         max_retries: int = 3,
     ) -> None:
+        self.local_file = local_file
         self.dataset_name = dataset_name
         self.split = split
         self.filter_pharmacy = filter_pharmacy
@@ -111,15 +131,16 @@ class MedDialogLoader:
 
     def load(self, max_records: Optional[int] = None) -> List[Dict]:
         """
-        Load conversations from Hugging Face and return structured Q&A records.
+        Load conversations from the local dataset file and return structured
+        Q&A records.
 
         Each returned record has the shape::
 
             {
-                "source":   "OpenMed/MedDialog",
-                "question": str,   # patient utterance
-                "answer":   str,   # doctor response
-                "category": str,   # always "pharmacy_qa"
+                "source":   str,           # file name or dataset_name
+                "question": str,           # patient utterance
+                "answer":   str,           # doctor response
+                "category": str,           # always "pharmacy_qa"
                 "topics":   list[str],
             }
 
@@ -129,37 +150,36 @@ class MedDialogLoader:
             Maximum number of Q&A pairs to return.  When ``None`` all matching
             pairs are returned.
 
-            In streaming mode (``use_streaming=True``, the default) the
-            download stops as soon as this limit is reached, so only the rows
-            actually needed are fetched from Hugging Face.
+        Raises
+        ------
+        ValueError
+            When no ``local_file`` path has been configured.
+        FileNotFoundError
+            When the configured ``local_file`` path does not exist.
         """
-        try:
-            from datasets import load_dataset  # type: ignore[import]
-        except ImportError as exc:
-            raise ImportError(
-                "The 'datasets' package is required.  "
-                "Install it with: pip install datasets>=4.0.0"
-            ) from exc
-
-        dataset = self._load_with_retry(load_dataset)
-
-        if not self.use_streaming:
-            logger.info("Dataset loaded: %d conversations", len(dataset))
-        else:
-            logger.info(
-                "Streaming dataset '%s' (split='%s') ready – rows will be "
-                "fetched lazily until the max_records limit is reached.",
-                self.dataset_name,
-                self.split,
+        if not self.local_file:
+            raise ValueError(
+                "No local dataset file configured.  Pass local_file='path/to/dataset.jsonl' "
+                "(or set the MEDDIALOG_FILE environment variable) and re-run."
             )
 
+        path = self.local_file
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f"Dataset file not found: '{path}'.  "
+                "Download the dataset manually and provide the correct path."
+            )
+
+        source_label = os.path.basename(path)
+        logger.info("Loading dataset from local file: %s", path)
+
+        rows = self._read_file(path)
+        logger.info("Read %d rows from '%s'.", len(rows), path)
+
         records: List[Dict] = []
-        rows_seen = 0
         _first_row_logged = False
-        for row in dataset:
-            rows_seen += 1
+        for row in rows:
             pairs = self._extract_qa_pairs(row)
-            # Log the first row's structure so unknown formats are easy to spot
             if not _first_row_logged:
                 _first_row_logged = True
                 logger.debug(
@@ -172,7 +192,7 @@ class MedDialogLoader:
                     continue
                 records.append(
                     {
-                        "source": self.dataset_name,
+                        "source": source_label,
                         "question": pair["question"],
                         "answer": pair["answer"],
                         "category": "pharmacy_qa",
@@ -186,59 +206,76 @@ class MedDialogLoader:
         logger.info(
             "Loaded %d pharmacy-relevant Q&A pairs from %d rows.",
             len(records),
-            rows_seen,
+            len(rows),
         )
         return records
 
-    # ── Internal download helper ──────────────────────────────────────────────
+    # ── Local file reader ─────────────────────────────────────────────────────
 
-    def _load_with_retry(self, load_dataset_fn):
+    def _read_file(self, path: str) -> List[Dict]:
         """
-        Call *load_dataset_fn* with retry / back-off logic.
+        Read *path* and return a list of row dicts.
 
-        Attempts up to ``self.max_retries`` times.  Each failure waits
-        ``2 ** attempt`` seconds before the next try (1 s, 2 s, 4 s, …).
-        Raises :class:`RuntimeError` when all attempts are exhausted.
+        Supported formats are detected by file extension:
+        * ``.json``          – JSON array
+        * ``.jsonl`` / ``.ndjson`` – newline-delimited JSON (one object per line)
+        * ``.csv``           – comma-separated with header row
+
+        Any other extension is tried first as JSONL, then as JSON.
         """
-        last_exc: Optional[Exception] = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                logger.info(
-                    "Downloading '%s' split='%s' streaming=%s … (attempt %d/%d)",
-                    self.dataset_name,
-                    self.split,
-                    self.use_streaming,
-                    attempt,
-                    self.max_retries,
-                )
-                return load_dataset_fn(
-                    self.dataset_name,
-                    split=self.split,
-                    cache_dir=self.cache_dir,
-                    streaming=self.use_streaming,
-                )
-            except Exception as exc:  # noqa: BLE001
-                last_exc = exc
-                if attempt < self.max_retries:
-                    wait = min(2 ** (attempt - 1), 60)
-                    logger.warning(
-                        "Attempt %d/%d failed (%s). Retrying in %d s …",
-                        attempt,
-                        self.max_retries,
-                        exc,
-                        wait,
-                    )
-                    time.sleep(wait)
-                else:
-                    logger.error(
-                        "All %d download attempts failed for '%s'.",
-                        self.max_retries,
-                        self.dataset_name,
-                    )
-        raise RuntimeError(
-            f"Failed to load dataset '{self.dataset_name}' after "
-            f"{self.max_retries} attempt(s)."
-        ) from last_exc
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".json":
+            return self._read_json(path)
+        if ext in (".jsonl", ".ndjson"):
+            return self._read_jsonl(path)
+        if ext == ".csv":
+            return self._read_csv(path)
+        # Unknown extension – try JSONL first, fall back to JSON
+        try:
+            rows = self._read_jsonl(path)
+            if rows:
+                return rows
+        except Exception:  # noqa: BLE001
+            pass
+        return self._read_json(path)
+
+    @staticmethod
+    def _read_json(path: str) -> List[Dict]:
+        """Read a JSON array file and return the list of objects."""
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return [r for r in data if isinstance(r, dict)]
+        raise ValueError(
+            f"Expected a JSON array in '{path}', got {type(data).__name__}."
+        )
+
+    @staticmethod
+    def _read_jsonl(path: str) -> List[Dict]:
+        """Read a newline-delimited JSON file and return a list of objects."""
+        rows: List[Dict] = []
+        with open(path, encoding="utf-8") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if isinstance(obj, dict):
+                        rows.append(obj)
+                except json.JSONDecodeError as exc:
+                    logger.warning("Skipping malformed JSON on line %d: %s", lineno, exc)
+        return rows
+
+    @staticmethod
+    def _read_csv(path: str) -> List[Dict]:
+        """Read a CSV file with a header row and return a list of row dicts."""
+        rows: List[Dict] = []
+        with open(path, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(dict(row))
+        return rows
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

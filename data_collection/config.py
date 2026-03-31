@@ -2,8 +2,18 @@
 Configuration for data collection sources and output paths.
 
 Legacy web scrapers (Red Cross, CDC, Mayo Clinic) have been replaced by the
-OpenMed/MedDialog Hugging Face dataset and the optional DrugBank Open Data
-file loader.
+OpenMed/MedDialog dataset loader and the optional DrugBank Open Data file
+loader.
+
+Dataset setup
+-------------
+Download the MedDialog dataset manually from
+https://huggingface.co/datasets/OpenMed/MedDialog (or any compatible source)
+and save it locally.  Then set the ``MEDDIALOG_FILE`` environment variable to
+the path of the downloaded file, or pass ``--dataset-file`` when running
+``scripts/run_collection.py``.
+
+No internet streaming or scraping is performed at runtime.
 """
 
 import os
@@ -22,9 +32,10 @@ TRAINING_DATA_PATH = os.path.join(OUTPUT_DIR, "training_data.csv")
 DATA_SOURCES = {
     "meddialog": {
         "name": "OpenMed/MedDialog",
-        "type": "huggingface_dataset",
-        "dataset_id": "OpenMed/MedDialog",
-        "split": "train",
+        "type": "local_file",
+        # Set this to the path of the manually downloaded dataset file, or use
+        # the MEDDIALOG_FILE environment variable.
+        "local_file": os.environ.get("MEDDIALOG_FILE", ""),
         "filter_pharmacy": True,
         "max_records": 65_000,
         "enabled": True,
@@ -46,13 +57,12 @@ DATA_SOURCES = {
 
 # ── MedDialog loader settings ─────────────────────────────────────────────────
 MEDDIALOG_SETTINGS = {
-    # HF_DATASETS_CACHE: custom override for the Hugging Face datasets cache
-    # directory. When unset, the default (~/.cache/huggingface/datasets) is used.
-    "cache_dir": os.environ.get("HF_DATASETS_CACHE", None),
-    # Enable streaming mode so only the rows needed are fetched from Hugging
-    # Face instead of downloading the full 1.47 M-row dataset upfront.
-    "use_streaming": True,
-    # Number of download attempts before giving up (exponential back-off).
+    # Path to the locally downloaded MedDialog dataset file.
+    # Override with the MEDDIALOG_FILE environment variable or the
+    # --dataset-file CLI argument when running scripts/run_collection.py.
+    "local_file": os.environ.get("MEDDIALOG_FILE", ""),
+    # Number of download attempts before giving up (kept for backwards compatibility only;
+    # not used when loading from a local file).
     "max_retries": 3,
     "confidence_threshold": 0.3,
     "max_text_length": 500,

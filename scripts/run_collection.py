@@ -1,18 +1,25 @@
 """
-run_collection.py – Execute the simplified MedDialog data-collection pipeline.
+run_collection.py – Execute the MedDialog data-collection pipeline.
 
 Usage
 -----
 ::
 
-    python scripts/run_collection.py [--max-records 65000]
+    python scripts/run_collection.py --dataset-file path/to/meddialog.jsonl
+                                     [--max-records 65000]
                                      [--output-dir output/]
                                      [--drugbank-file path/to/drugbank.json]
 
+How to get the dataset
+-----------------------
+1. Visit https://huggingface.co/datasets/OpenMed/MedDialog
+2. Download the dataset file(s) you need (JSON, JSONL, or CSV).
+3. Pass the local path via ``--dataset-file`` (or set ``MEDDIALOG_FILE``).
+
 Pipeline steps
 --------------
-1. **Load** – Download the OpenMed/MedDialog dataset from Hugging Face and
-   filter for pharmacy-relevant conversations.
+1. **Load** – Read the locally downloaded MedDialog dataset file and filter
+   for pharmacy-relevant conversations.
 2. **Process** – Map Q&A pairs to 13 pharmacy intent labels and build
    structured training rows + knowledge-base entries.
 3. **Export** – Write ``knowledge_base.json`` and ``training_data.csv``.
@@ -37,7 +44,6 @@ if _PROJECT_ROOT not in sys.path:
 from data_collection.config import (
     DATA_SOURCES,
     KNOWLEDGE_BASE_PATH,
-    MEDDIALOG_SETTINGS,
     OUTPUT_DIR,
     TRAINING_DATA_PATH,
 )
@@ -54,10 +60,19 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Pharmacy Connect – MedDialog data collection")
     parser.add_argument(
+        "--dataset-file",
+        default=DATA_SOURCES["meddialog"].get("local_file", ""),
+        help=(
+            "Path to the locally downloaded MedDialog dataset file "
+            "(JSON, JSONL, or CSV).  Can also be set via the MEDDIALOG_FILE "
+            "environment variable."
+        ),
+    )
+    parser.add_argument(
         "--max-records",
         type=int,
         default=DATA_SOURCES["meddialog"].get("max_records", 65_000),
-        help="Maximum Q&A pairs to extract from MedDialog (default: 65 000)",
+        help="Maximum Q&A pairs to extract from the dataset (default: 65 000)",
     )
     parser.add_argument(
         "--output-dir",
@@ -79,25 +94,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable pharmacy-keyword filtering (load all conversations)",
     )
-    parser.add_argument(
-        "--no-streaming",
-        action="store_true",
-        help=(
-            "Disable streaming mode and download the full dataset before "
-            "filtering.  By default streaming is used so only the rows needed "
-            "are fetched from Hugging Face."
-        ),
-    )
     return parser.parse_args()
 
 
 def run_collection(
+    dataset_file: str,
     max_records: int,
     output_dir: str,
     drugbank_file: str = "",
     dry_run: bool = False,
     filter_pharmacy: bool = True,
-    use_streaming: bool = True,
 ) -> dict:
     """
     Execute the 3-step MedDialog data-collection pipeline.
@@ -109,14 +115,10 @@ def run_collection(
     meddialog_cfg = DATA_SOURCES["meddialog"]
 
     # ── Step 1: Load MedDialog ────────────────────────────────────────────────
-    logger.info("Step 1/3 – Loading OpenMed/MedDialog dataset …")
+    logger.info("Step 1/3 – Loading MedDialog dataset from local file …")
     loader = MedDialogLoader(
-        dataset_name=meddialog_cfg["dataset_id"],
-        split=meddialog_cfg.get("split", "train"),
+        local_file=dataset_file or meddialog_cfg.get("local_file", ""),
         filter_pharmacy=filter_pharmacy and meddialog_cfg.get("filter_pharmacy", True),
-        cache_dir=MEDDIALOG_SETTINGS.get("cache_dir"),
-        use_streaming=use_streaming,
-        max_retries=MEDDIALOG_SETTINGS.get("max_retries", 3),
     )
     qa_pairs = loader.load(max_records=max_records)
     logger.info("Loaded %d Q&A pairs from MedDialog.", len(qa_pairs))
@@ -209,12 +211,12 @@ def _write_training_data(rows: list, path: str) -> None:
 if __name__ == "__main__":
     args = parse_args()
     summary = run_collection(
+        dataset_file=args.dataset_file,
         max_records=args.max_records,
         output_dir=args.output_dir,
         drugbank_file=args.drugbank_file,
         dry_run=args.dry_run,
         filter_pharmacy=not args.no_filter,
-        use_streaming=not args.no_streaming,
     )
     print("\nCollection summary:")
     for key, value in summary.items():
