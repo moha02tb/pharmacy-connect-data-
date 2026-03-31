@@ -79,6 +79,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable pharmacy-keyword filtering (load all conversations)",
     )
+    parser.add_argument(
+        "--no-streaming",
+        action="store_true",
+        help=(
+            "Disable streaming mode and download the full dataset before "
+            "filtering.  By default streaming is used so only the rows needed "
+            "are fetched from Hugging Face."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -88,6 +97,7 @@ def run_collection(
     drugbank_file: str = "",
     dry_run: bool = False,
     filter_pharmacy: bool = True,
+    use_streaming: bool = True,
 ) -> dict:
     """
     Execute the 3-step MedDialog data-collection pipeline.
@@ -105,6 +115,8 @@ def run_collection(
         split=meddialog_cfg.get("split", "train"),
         filter_pharmacy=filter_pharmacy and meddialog_cfg.get("filter_pharmacy", True),
         cache_dir=MEDDIALOG_SETTINGS.get("cache_dir"),
+        use_streaming=use_streaming,
+        max_retries=MEDDIALOG_SETTINGS.get("max_retries", 3),
     )
     qa_pairs = loader.load(max_records=max_records)
     logger.info("Loaded %d Q&A pairs from MedDialog.", len(qa_pairs))
@@ -202,6 +214,7 @@ if __name__ == "__main__":
         drugbank_file=args.drugbank_file,
         dry_run=args.dry_run,
         filter_pharmacy=not args.no_filter,
+        use_streaming=not args.no_streaming,
     )
     print("\nCollection summary:")
     for key, value in summary.items():

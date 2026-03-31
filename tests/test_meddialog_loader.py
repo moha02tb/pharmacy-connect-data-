@@ -25,6 +25,7 @@ def _make_fake_datasets_module() -> types.ModuleType:
         name: str,
         split: str = "train",
         cache_dir: "str | None" = None,
+        streaming: bool = False,
     ) -> list:
         return []
 
@@ -169,6 +170,122 @@ class TestMedDialogLoader(unittest.TestCase):
         from data_collection.scrapers.meddialog_loader import MedDialogLoader
         loader = MedDialogLoader(filter_pharmacy=False)
         self.assertIsNotNone(loader)
+
+    def test_use_streaming_default_true(self):
+        """use_streaming defaults to True."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        loader = MedDialogLoader()
+        self.assertTrue(loader.use_streaming)
+
+    def test_use_streaming_can_be_disabled(self):
+        """use_streaming can be set to False."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        loader = MedDialogLoader(use_streaming=False)
+        self.assertFalse(loader.use_streaming)
+
+    def test_max_retries_default(self):
+        """max_retries defaults to 3."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        loader = MedDialogLoader()
+        self.assertEqual(loader.max_retries, 3)
+
+    def test_max_retries_minimum_is_one(self):
+        """max_retries is clamped to at least 1."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        loader = MedDialogLoader(max_retries=0)
+        self.assertEqual(loader.max_retries, 1)
+
+    def test_load_with_retry_passes_streaming_flag(self):
+        """_load_with_retry forwards the streaming flag to load_dataset."""
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+        import datasets as _ds
+
+        calls = []
+
+        def fake_load(name, split="train", cache_dir=None, streaming=False):
+            calls.append({"name": name, "streaming": streaming})
+            return []
+
+        original = _ds.load_dataset
+        _ds.load_dataset = fake_load
+        try:
+            loader = MedDialogLoader(use_streaming=True)
+            loader._load_with_retry(fake_load)
+            self.assertEqual(len(calls), 1)
+            self.assertTrue(calls[0]["streaming"])
+        finally:
+            _ds.load_dataset = original
+
+    def test_load_with_retry_retries_on_failure(self):
+        """_load_with_retry retries up to max_retries times on exceptions."""
+        import unittest.mock as mock
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+
+        attempt_count = 0
+
+        def always_fail(name, split="train", cache_dir=None, streaming=False):
+            nonlocal attempt_count
+            attempt_count += 1
+            raise ConnectionError("simulated network error")
+
+        loader = MedDialogLoader(max_retries=3)
+        with mock.patch("time.sleep"):  # skip actual sleep in tests
+            with self.assertRaises(RuntimeError):
+                loader._load_with_retry(always_fail)
+        self.assertEqual(attempt_count, 3)
+
+    def test_load_with_retry_succeeds_on_second_attempt(self):
+        """_load_with_retry returns the dataset after a transient failure."""
+        import unittest.mock as mock
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+
+        call_count = 0
+
+        def fail_once(name, split="train", cache_dir=None, streaming=False):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ConnectionError("transient error")
+            return ["row1", "row2"]
+
+        loader = MedDialogLoader(max_retries=3)
+        with mock.patch("time.sleep"):
+            result = loader._load_with_retry(fail_once)
+        self.assertEqual(result, ["row1", "row2"])
+        self.assertEqual(call_count, 2)
+
+    def test_load_streaming_stops_at_max_records(self):
+        """In streaming mode, load() stops fetching once max_records is hit."""
+        import datasets as _ds
+        from data_collection.scrapers.meddialog_loader import MedDialogLoader
+
+        # All rows contain "medication" so all are pharmacy-relevant
+        fake_dataset = [
+            {"utterances": [f"What medication is drug{i}?", f"Drug{i} answer."]}
+            for i in range(20)
+        ]
+
+        rows_consumed = [0]
+        original_load = _ds.load_dataset
+
+        def fake_load(name, split="train", cache_dir=None, streaming=False):
+            def gen():
+                for row in fake_dataset:
+                    rows_consumed[0] += 1
+                    yield row
+
+            return gen()
+
+        _ds.load_dataset = fake_load
+        try:
+            loader = MedDialogLoader(filter_pharmacy=True, use_streaming=True, max_retries=1)
+            records = loader.load(max_records=5)
+            # All questions are pharmacy-relevant, so exactly 5 should be returned
+            self.assertEqual(len(records), 5)
+            # Should have stopped early, not consumed all 20 rows
+            self.assertLess(rows_consumed[0], 20)
+        finally:
+            _ds.load_dataset = original_load
 
 
 class TestMedDialogKBBuilder(unittest.TestCase):
