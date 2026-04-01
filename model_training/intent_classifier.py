@@ -12,6 +12,7 @@ Usage
     classifier = IntentClassifier(backend="spacy")
     classifier.train(training_data)           # list of {"text": ..., "intent": ...}
     intent = classifier.predict("What are the side effects of ibuprofen?")
+    intent, conf = classifier.predict_with_confidence("What are the side effects?")
     classifier.save("/path/to/model")
     classifier.load("/path/to/model")
 """
@@ -20,11 +21,97 @@ import json
 import logging
 import os
 import pickle
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 SUPPORTED_BACKENDS = ("spacy", "bert")
+
+# Minimum ML model confidence below which ``predict_with_confidence`` signals
+# that the chatbot should ask the user for clarification.  Emergency and
+# first-aid intents are **never** re-routed away on low confidence (safety).
+LOW_CONFIDENCE_THRESHOLD = 0.40
+
+# Keywords that should trigger a first_aid_guidance override when the model
+# mis-classifies a query as general_health_question.
+_FIRST_AID_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "burn",
+        "burned",
+        "burning",
+        "chemical burn",
+        "electrical burn",
+        "heat burn",
+        "sunburn",
+        "sun burn",
+        "acid burn",
+        "second degree burn",
+        "third degree burn",
+        "scald",
+        "scalded",
+        "bleed",
+        "bleeding",
+        "wound",
+        "cut",
+        "laceration",
+        "choke",
+        "choking",
+        "seizure",
+        "fracture",
+        "sprain",
+        "sprained",
+        "cpr",
+        "first aid",
+        "bandage",
+    ]
+)
+
+# Keywords that should trigger an emergency_assistance override.
+_EMERGENCY_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "overdose",
+        "overdosed",
+        "unconscious",
+        "not breathing",
+        "stopped breathing",
+        "call 911",
+        "poison control",
+        "life threatening",
+    ]
+)
+
+# Pre-compiled regex patterns (module load time) for O(1) per-query matching.
+_FIRST_AID_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _FIRST_AID_OVERRIDE_KEYWORDS
+]
+_EMERGENCY_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _EMERGENCY_OVERRIDE_KEYWORDS
+]
+
+
+def _apply_safety_override(text: str, predicted: str) -> str:
+    """
+    Override ``"general_health_question"`` predictions for queries that contain
+    explicit first-aid or emergency keywords.
+
+    This acts as a safety net to prevent high-confidence wrong predictions
+    (e.g. predicting ``general_health_question`` for "Help I got burned") from
+    returning an irrelevant response when the correct intent is clearly
+    first-aid or emergency-related based on keyword matching.
+
+    Word-boundary matching (``\\b``) is used to avoid false positives from
+    words that merely *contain* a keyword (e.g. "burnout" ≠ "burn").
+    Patterns are pre-compiled once at module load time for performance.
+    """
+    if predicted != "general_health_question":
+        return predicted
+    lower = text.lower()
+    if any(pattern.search(lower) for pattern in _FIRST_AID_PATTERNS):
+        return "first_aid_guidance"
+    if any(pattern.search(lower) for pattern in _EMERGENCY_PATTERNS):
+        return "emergency_assistance"
+    return predicted
 
 
 class IntentClassifier:
@@ -79,18 +166,67 @@ class IntentClassifier:
         Predict the intent label for *text*.
 
         Returns ``"unknown"`` if the model has not been trained.
+
+        A keyword-based safety override is applied after the ML prediction: if
+        the model predicts ``"general_health_question"`` but the query contains
+        well-known first-aid or emergency keywords, the prediction is corrected
+        to ``"first_aid_guidance"`` or ``"emergency_assistance"`` respectively.
+        This prevents high-confidence wrong predictions for urgent queries.
         """
         if not self._is_trained:
             logger.warning("Model is not trained yet – returning 'unknown'.")
             return "unknown"
 
         if self.backend == "spacy":
-            return self._predict_spacy(text)
-        return self._predict_bert(text)
+            predicted = self._predict_spacy(text)
+        else:
+            predicted = self._predict_bert(text)
+
+        return _apply_safety_override(text, predicted)
+
+    def predict_with_confidence(self, text: str) -> Tuple[str, float]:
+        """
+        Return ``(intent, confidence)`` where *confidence* is a float in [0, 1].
+
+        The safety override is applied before returning, so the intent is the
+        final corrected label (same as :meth:`predict`).  When the keyword
+        safety override fires the confidence is ``1.0`` (the override is
+        considered certain).  Otherwise, confidence is the ML model's predicted
+        probability for the returned intent class.
+
+        This is the recommended method for callers that want to implement
+        confidence-based routing (e.g. asking the user for clarification when
+        confidence is below :data:`LOW_CONFIDENCE_THRESHOLD`).
+        """
+        if not self._is_trained:
+            return "unknown", 0.0
+
+        if self.backend == "spacy":
+            raw_intent = self._predict_spacy(text)
+            proba_dict = self._predict_proba_spacy(text)
+        else:
+            raw_intent = self._predict_bert(text)
+            proba_dict = self._predict_proba_bert(text)
+
+        final_intent = _apply_safety_override(text, raw_intent)
+
+        if final_intent != raw_intent:
+            # Safety override fired – we are certain of the intent.
+            return final_intent, 1.0
+
+        confidence = proba_dict.get(final_intent, 0.0)
+        return final_intent, confidence
 
     def predict_proba(self, text: str) -> Dict[str, float]:
         """
         Return a dict mapping each intent label to its confidence score.
+
+        Note: these are the raw ML model probabilities **before** the keyword
+        safety override applied in :meth:`predict`.  They reflect the model's
+        learned distribution and are useful for debugging and confidence
+        reporting; use :meth:`predict` to get the final, safety-corrected
+        intent label, or :meth:`predict_with_confidence` to get both the
+        corrected label and its associated confidence in one call.
         """
         if not self._is_trained:
             return {}
@@ -127,7 +263,7 @@ class IntentClassifier:
             from sklearn.linear_model import LogisticRegression
             from sklearn.metrics import accuracy_score, f1_score
             from sklearn.model_selection import train_test_split
-            from sklearn.pipeline import Pipeline
+            from sklearn.pipeline import FeatureUnion, Pipeline
             from sklearn.preprocessing import LabelEncoder
             from sklearn.feature_extraction.text import TfidfVectorizer
         except ImportError as exc:
@@ -149,10 +285,43 @@ class IntentClassifier:
             texts, y, test_size=test_size, random_state=random_state, stratify=y
         )
 
+        # Combine word n-gram TF-IDF with character n-gram TF-IDF.
+        # The character-level features improve accuracy for misspelled words,
+        # abbreviated drug names, and out-of-vocabulary medical terms.
+        features = FeatureUnion(
+            [
+                (
+                    "word_tfidf",
+                    TfidfVectorizer(
+                        ngram_range=(1, 2),
+                        max_features=10_000,
+                        analyzer="word",
+                        sublinear_tf=True,
+                    ),
+                ),
+                (
+                    "char_tfidf",
+                    TfidfVectorizer(
+                        ngram_range=(2, 4),
+                        max_features=5_000,
+                        analyzer="char_wb",
+                        sublinear_tf=True,
+                    ),
+                ),
+            ]
+        )
         pipeline = Pipeline(
             [
-                ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_features=10_000)),
-                ("clf", LogisticRegression(max_iter=1000, random_state=random_state)),
+                ("features", features),
+                (
+                    "clf",
+                    LogisticRegression(
+                        max_iter=1000,
+                        C=5.0,
+                        class_weight="balanced",
+                        random_state=random_state,
+                    ),
+                ),
             ]
         )
         pipeline.fit(x_train, y_train)
@@ -328,3 +497,85 @@ class IntentClassifier:
         tokenizer = AutoTokenizer.from_pretrained(path)
         model = AutoModelForSequenceClassification.from_pretrained(path)
         self._model = (model, tokenizer)
+
+
+# Keywords that should trigger a first_aid_guidance override when the model
+# mis-classifies a query as general_health_question.
+_FIRST_AID_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "burn",
+        "burned",
+        "burning",
+        "chemical burn",
+        "electrical burn",
+        "heat burn",
+        "sunburn",
+        "sun burn",
+        "acid burn",
+        "second degree burn",
+        "third degree burn",
+        "scald",
+        "scalded",
+        "bleed",
+        "bleeding",
+        "wound",
+        "cut",
+        "laceration",
+        "choke",
+        "choking",
+        "seizure",
+        "fracture",
+        "sprain",
+        "sprained",
+        "cpr",
+        "first aid",
+        "bandage",
+    ]
+)
+
+# Keywords that should trigger an emergency_assistance override.
+_EMERGENCY_OVERRIDE_KEYWORDS = frozenset(
+    [
+        "overdose",
+        "overdosed",
+        "unconscious",
+        "not breathing",
+        "stopped breathing",
+        "call 911",
+        "poison control",
+        "life threatening",
+    ]
+)
+
+# Pre-compiled regex patterns (module load time) for O(1) per-query matching.
+_FIRST_AID_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _FIRST_AID_OVERRIDE_KEYWORDS
+]
+_EMERGENCY_PATTERNS = [
+    re.compile(r"\b" + re.escape(kw) + r"\b") for kw in _EMERGENCY_OVERRIDE_KEYWORDS
+]
+
+
+def _apply_safety_override(text: str, predicted: str) -> str:
+    """
+    Override ``"general_health_question"`` predictions for queries that contain
+    explicit first-aid or emergency keywords.
+
+    This acts as a safety net to prevent high-confidence wrong predictions
+    (e.g. predicting ``general_health_question`` for "Help I got burned") from
+    returning an irrelevant response when the correct intent is clearly
+    first-aid or emergency-related based on keyword matching.
+
+    Word-boundary matching (``\\b``) is used to avoid false positives from
+    words that merely *contain* a keyword (e.g. "burnout" ≠ "burn").
+    Patterns are pre-compiled once at module load time for performance.
+    """
+    if predicted != "general_health_question":
+        return predicted
+    lower = text.lower()
+    if any(pattern.search(lower) for pattern in _FIRST_AID_PATTERNS):
+        return "first_aid_guidance"
+    if any(pattern.search(lower) for pattern in _EMERGENCY_PATTERNS):
+        return "emergency_assistance"
+    return predicted
+

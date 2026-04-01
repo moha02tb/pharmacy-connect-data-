@@ -183,6 +183,14 @@ _PARAPHRASE_PATTERNS = [
     (r"^Can I (.+)\?$", "Is it possible to {0}?"),
     (r"^Tell me about (.+)$", "What should I know about {0}?"),
     (r"^(.+) side effects$", "What are the side effects of {0}?"),
+    (r"^Is it safe to (.+)\?$", "Can I safely {0}?"),
+    (r"^What should I do (if|when) (.+)\?$", "How do I handle {1}?"),
+    (r"^How do I treat (.+)\?$", "What is the treatment for {0}?"),
+    (r"^Where can I (.+)\?$", "How do I {0}?"),
+    (r"^What (happens|occur\w*) (if|when) (.+)\?$", "What are the effects of {2}?"),
+    (r"^Do I need (.+)\?$", "Should I get {0}?"),
+    (r"^How (much|many) (.+)\?$", "What is the correct amount of {1}?"),
+    (r"^(.+) dosage$", "What is the dosage for {0}?"),
 ]
 
 
